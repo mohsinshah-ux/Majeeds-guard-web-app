@@ -7,4 +7,6 @@
     <string name="notification_text">Monitoring active — Majeeds Testing Guard System</string>
     <string name="device_admin_label">Child Safety Device Admin</string>
     <string name="device_admin_description">Required for screen time limits and remote device management</string>
+    <!-- Parent dashboard URL (Vercel). Update when you deploy to production. -->
+    <string name="default_server_url">https://majeeds-guard-web-app-git-3c45c0-mohsinpcda-gmailcoms-projects.vercel.app</string>
 </resources>

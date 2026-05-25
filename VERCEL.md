@@ -19,7 +19,10 @@ Push this repo to GitHub (see `GITHUB_SETUP.md`).
 
 | Variable | Value |
 |----------|--------|
-| `APP_BASE_URL` | `https://YOUR-PROJECT.vercel.app` (your deployment URL, no trailing slash) |
+| `APP_BASE_URL` | `https://majeeds-guard-web-app.vercel.app` or your preview URL (no trailing slash) |
+
+Example preview URL:
+`https://majeeds-guard-web-app-git-3c45c0-mohsinpcda-gmailcoms-projects.vercel.app`
 
 Optional:
 

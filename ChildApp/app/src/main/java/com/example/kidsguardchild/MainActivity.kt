@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -78,7 +79,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val prefs = getSharedPreferences("kidsguard_prefs", MODE_PRIVATE)
-        val savedUrl = prefs.getString("server_url", "") ?: ""
+        val defaultUrl = getString(R.string.default_server_url)
+        val savedUrl = prefs.getString("server_url", null)?.takeIf { it.isNotBlank() } ?: defaultUrl
         val savedToken = prefs.getString("device_token", "") ?: ""
         val isPaired = prefs.getBoolean("is_paired", false)
 
@@ -365,7 +367,7 @@ fun ServerSetupScreen(
             value = serverUrl,
             onValueChange = onUrlChange,
             label = "Server URL",
-            placeholder = "https://your-app.vercel.app",
+            placeholder = stringResource(R.string.default_server_url),
             keyboardType = KeyboardType.Uri
         )
 
