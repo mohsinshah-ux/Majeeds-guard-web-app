@@ -1,5 +1,5 @@
 import { defaultRemoteControlState } from "./deviceHelpers.js";
-import { loadPersistedState, savePersistedState } from "./stateStore.js";
+import { hydrateState, persistState } from "./persistence.js";
 import {
   allStateStores,
   boundDevices,
@@ -29,16 +29,8 @@ export function buildInviteUrl(token, port = 8080) {
   return `${getAppBaseUrl(port)}/bind/${token}`;
 }
 
-export function refreshStateFromDisk() {
-  loadPersistedState(allStateStores());
-}
-
-export function persistStateToDisk() {
-  savePersistedState(allStateStores());
-}
-
-export function createDeviceInvitation(label, port = 8080) {
-  refreshStateFromDisk();
+export async function createDeviceInvitation(label, port = 8080) {
+  await hydrateState(allStateStores());
   const token = createInviteToken();
   const invitation = {
     token,
@@ -48,7 +40,7 @@ export function createDeviceInvitation(label, port = 8080) {
     redeemed: false
   };
   deviceInvites.set(token, invitation);
-  persistStateToDisk();
+  await persistState(allStateStores());
   return {
     status: 201,
     body: {
@@ -58,8 +50,8 @@ export function createDeviceInvitation(label, port = 8080) {
   };
 }
 
-export function redeemDeviceInvitation(token, body) {
-  refreshStateFromDisk();
+export async function redeemDeviceInvitation(token, body) {
+  await hydrateState(allStateStores());
   const invite = deviceInvites.get(token);
   if (!invite) {
     return { status: 404, body: { error: "Invitation token not found" } };
@@ -83,9 +75,14 @@ export function redeemDeviceInvitation(token, body) {
     battery: 100
   };
   invite.redeemed = true;
-  boundDevices.push(boundDevice);
+  const existingIdx = boundDevices.findIndex((d) => d.id === token);
+  if (existingIdx >= 0) {
+    boundDevices[existingIdx] = boundDevice;
+  } else {
+    boundDevices.push(boundDevice);
+  }
   remoteControlByDevice.set(token, defaultRemoteControlState());
   geofenceStateByDevice[token] = {};
-  persistStateToDisk();
+  await persistState(allStateStores());
   return { status: 200, body: { success: true, device: boundDevice } };
 }

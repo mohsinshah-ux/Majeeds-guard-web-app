@@ -18,6 +18,12 @@ import {
   getRemoteControlForDevice,
   defaultRemoteControlState
 } from "./deviceHelpers.js";
+import {
+  hydrateState,
+  persistState as saveState,
+  isRedisConfigured,
+  pingRedis
+} from "./persistence.js";
 import { loadPersistedState, savePersistedState } from "./stateStore.js";
 import {
   allStateStores,
@@ -154,10 +160,6 @@ function getLocalIp() {
   return "localhost";
 }
 
-function persistState() {
-  savePersistedState(allStateStores());
-}
-
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -181,13 +183,13 @@ app.use(
 
 loadPersistedState(allStateStores());
 
-if (process.env.VERCEL) {
-  app.use((req, res, next) => {
-    loadPersistedState(allStateStores());
-    res.on("finish", () => persistState());
-    next();
+app.use(async (req, res, next) => {
+  await hydrateState(allStateStores());
+  res.on("finish", () => {
+    void saveState(allStateStores());
   });
-}
+  next();
+});
 
 // Express 5 + serverless-http: body-parser waits forever unless socket is readable
 app.use((req, _res, next) => {
@@ -199,13 +201,20 @@ app.use((req, _res, next) => {
 
 app.use(express.json({ limit: "50mb" })); // allow screenshot base64 uploads
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "parental-control-backend", localIp: getLocalIp() });
+app.get("/health", async (_req, res) => {
+  const redis = isRedisConfigured() ? await pingRedis() : { configured: false, ok: false };
+  res.json({
+    status: "ok",
+    service: "parental-control-backend",
+    localIp: getLocalIp(),
+    storage: redis.configured ? (redis.ok ? "redis" : "redis_unreachable") : "file_only",
+    pairedDevices: boundDevices.length
+  });
 });
 
 // ─── GET API ENDPOINTS WITH PAIRED DEVICE DUMMY HIDE LOGIC ──────────────────
-app.get("/api/devices", (_req, res) => {
-  loadPersistedState(allStateStores());
+app.get("/api/devices", async (_req, res) => {
+  await hydrateState(allStateStores());
   res.json([...boundDevices]);
 });
 
@@ -789,13 +798,13 @@ app.post("/api/remote-control/reset-data", (req, res) => {
 });
 
 // ─── DEVICE PAIRING LIFECYCLE ───────────────────────────────────────────────
-app.post("/api/device-invitations", (req, res) => {
+app.post("/api/device-invitations", async (req, res) => {
   const label = typeof req.body?.label === "string" ? req.body.label.trim() : "";
-  const result = createDeviceInvitation(label, port);
+  const result = await createDeviceInvitation(label, port);
   res.status(result.status).json(result.body);
 });
 
-app.post("/api/device-media-invitations", (req, res) => {
+app.post("/api/device-media-invitations", async (req, res) => {
   const fileName = typeof req.body?.fileName === "string" ? req.body.fileName.trim() : "";
   if (!fileName) {
     res.status(400).json({ error: "fileName is required" });
@@ -810,21 +819,21 @@ app.post("/api/device-media-invitations", (req, res) => {
     redeemed: false
   };
   deviceInvites.set(token, invitation);
-  persistState();
+  await saveState(allStateStores());
   res.status(201).json({
     ...invitation,
     inviteUrl: buildInviteUrl(token)
   });
 });
 
-app.post("/api/device-invitations/:token/redeem", (req, res) => {
+app.post("/api/device-invitations/:token/redeem", async (req, res) => {
   const { token } = req.params;
-  const result = redeemDeviceInvitation(token, req.body ?? {});
+  const result = await redeemDeviceInvitation(token, req.body ?? {});
   res.status(result.status).json(result.body);
 });
 
 /** Redeem without device header — some clients send stale X-Device-Id before pairing completes. */
-app.post("/api/pair/redeem", (req, res) => {
+app.post("/api/pair/redeem", async (req, res) => {
   const token =
     (typeof req.body?.token === "string" && req.body.token.trim()) ||
     (typeof req.query?.token === "string" && req.query.token.trim()) ||
@@ -833,12 +842,12 @@ app.post("/api/pair/redeem", (req, res) => {
     res.status(400).json({ error: "Pairing token is required" });
     return;
   }
-  const result = redeemDeviceInvitation(token, req.body ?? {});
+  const result = await redeemDeviceInvitation(token, req.body ?? {});
   res.status(result.status).json(result.body);
 });
 
 // ─── REMOVE / UNBIND A DEVICE ────────────────────────────────────────────────
-app.delete("/api/devices/:id", (req, res) => {
+app.delete("/api/devices/:id", async (req, res) => {
   const { id } = req.params;
   const idx = boundDevices.findIndex(d => d.id === id);
   if (idx === -1) {
@@ -853,7 +862,7 @@ app.delete("/api/devices/:id", (req, res) => {
     geofenceStateByDevice
   );
   console.log(`Device ${id} removed; cleared ${removed} telemetry records.`);
-  persistState();
+  await saveState(allStateStores());
   res.json({ success: true, removed });
 });
 

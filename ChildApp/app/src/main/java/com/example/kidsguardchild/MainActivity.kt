@@ -241,7 +241,10 @@ fun KidsGuardApp(
                     )
                     3 -> PairingSuccessScreen(
                         deviceName = deviceName.ifBlank { "Child Device" },
-                        onContinue = { currentStep = 4 }
+                        onContinue = {
+                            onStartService()
+                            currentStep = 4
+                        }
                     )
                     4 -> PermissionsScreen(
                         onRequestLocation = onRequestLocationPermission,
@@ -520,8 +523,8 @@ fun PairingScreen(
                             )
                         }
                         if (response.isSuccessful) {
-                            ApiClient.init(serverUrl, context)
                             onPaired()
+                            ApiClient.init(serverUrl, context)
                         } else {
                             val serverMsg = response.errorBody()?.string()
                                 ?.let { body ->

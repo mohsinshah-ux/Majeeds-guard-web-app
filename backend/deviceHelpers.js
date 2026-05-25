@@ -14,25 +14,30 @@ export const defaultRemoteControlState = () => ({
   historicalSyncPending: false
 });
 
-/** Child uploads: header X-Device-Id or body.deviceId */
-export function resolveUploadDeviceId(req, boundDevices) {
+function resolveDeviceIdFromRequest(req, boundDevices) {
   const raw =
     req.headers["x-device-id"] ||
     req.headers["X-Device-Id"] ||
-    req.body?.deviceId;
-  if (!raw || typeof raw !== "string") return null;
-  const deviceId = raw.trim();
-  if (!boundDevices.some((d) => d.id === deviceId)) return null;
-  return deviceId;
+    req.body?.deviceId ||
+    req.query?.deviceId;
+  if (raw && typeof raw === "string") {
+    const deviceId = raw.trim();
+    if (boundDevices.some((d) => d.id === deviceId)) return deviceId;
+  }
+  if (boundDevices.length === 1) {
+    return boundDevices[0].id;
+  }
+  return null;
 }
 
-/** Parent reads: ?deviceId= */
+/** Child uploads: header X-Device-Id or body.deviceId */
+export function resolveUploadDeviceId(req, boundDevices) {
+  return resolveDeviceIdFromRequest(req, boundDevices);
+}
+
+/** Parent reads: ?deviceId= (auto-picks the only bound device when omitted) */
 export function resolveQueryDeviceId(req, boundDevices) {
-  const raw = req.query?.deviceId;
-  if (!raw || typeof raw !== "string") return null;
-  const deviceId = raw.trim();
-  if (!boundDevices.some((d) => d.id === deviceId)) return null;
-  return deviceId;
+  return resolveDeviceIdFromRequest(req, boundDevices);
 }
 
 /** When only one device is bound, records without deviceId (pre-migration) still match. */

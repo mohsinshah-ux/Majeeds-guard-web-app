@@ -68,7 +68,7 @@ const permissionGroups = [
 
 // ─── Main Layout ──────────────────────────────────────────────────────────────
 export function Layout() {
-  const { devices, refreshDevices, setSelectedDevice } = useSelectedDevice();
+  const { devices, refreshDevices, setSelectedDevice, registerPairedDevice } = useSelectedDevice();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [bindModalOpen, setBindModalOpen] = useState(false);
@@ -156,7 +156,7 @@ export function Layout() {
       if (cancelled || !invitation) return;
       const paired = list.find((d) => d.id === invitation.token);
       if (paired) {
-        setSelectedDevice(paired);
+        registerPairedDevice(paired);
         setBindStep('connected');
       }
     };
@@ -167,7 +167,7 @@ export function Layout() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [bindStep, bindModalOpen, invitation, refreshDevices, setSelectedDevice]);
+  }, [bindStep, bindModalOpen, invitation, refreshDevices, registerPairedDevice]);
 
   // ── Copy invite link ─────────────────────────────────────────────────────────
   const handleCopy = useCallback(() => {

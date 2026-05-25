@@ -16,6 +16,7 @@ type SelectedDeviceContextValue = {
   selectedDevice: Device | null;
   selectedDeviceId: string | null;
   setSelectedDevice: (device: Device | null) => void;
+  registerPairedDevice: (device: Device) => void;
   refreshDevices: () => Promise<Device[]>;
   loading: boolean;
   refreshError: string | null;
@@ -33,11 +34,8 @@ export function SelectedDeviceProvider({ children }: { children: ReactNode }) {
   const devicesRef = useRef<Device[]>([]);
 
   const applySelection = useCallback((list: Device[]) => {
-    if (list.length === 0) {
-      setSelectedDeviceId(null);
-      setSelectedDeviceIdState(null);
-      return;
-    }
+    // Empty list can be a cold-start blip on Vercel — keep the last selected device id.
+    if (list.length === 0) return;
     const stored = getSelectedDeviceId();
     const match = stored ? list.find((d) => d.id === stored) : null;
     const next = match ?? list[0]!;
@@ -93,17 +91,29 @@ export function SelectedDeviceProvider({ children }: { children: ReactNode }) {
     setSelectedDeviceIdState(device?.id ?? null);
   }, []);
 
+  const registerPairedDevice = useCallback((device: Device) => {
+    setDevices((prev) => {
+      if (prev.some((d) => d.id === device.id)) return prev;
+      const next = [...prev, device];
+      devicesRef.current = next;
+      return next;
+    });
+    setSelectedDeviceId(device.id);
+    setSelectedDeviceIdState(device.id);
+  }, []);
+
   const value = useMemo(
     () => ({
       devices,
       selectedDevice,
       selectedDeviceId,
       setSelectedDevice,
+      registerPairedDevice,
       refreshDevices,
       loading,
       refreshError,
     }),
-    [devices, selectedDevice, selectedDeviceId, setSelectedDevice, refreshDevices, loading, refreshError]
+    [devices, selectedDevice, selectedDeviceId, setSelectedDevice, registerPairedDevice, refreshDevices, loading, refreshError]
   );
 
   return (
