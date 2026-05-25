@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 import { getApiBaseUrl } from '@/lib/apiBase';
+import { createDeviceInvitation } from '@/lib/api';
 
 const BACKEND = getApiBaseUrl();
 
@@ -133,13 +134,7 @@ export function Layout() {
     setGenError('');
     setInvitation(null);
     try {
-      const res = await fetch(`${BACKEND}/api/device-invitations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: deviceLabel.trim() || 'Child Device' }),
-      });
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const data = await res.json();
+      const data = await createDeviceInvitation(deviceLabel.trim() || 'Child Device');
       setInvitation(data);
       setBindStep('generate');
     } catch {

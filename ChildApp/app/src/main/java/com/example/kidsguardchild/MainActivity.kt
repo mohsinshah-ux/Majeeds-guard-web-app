@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             KidsGuardApp(
+                activityContext = this,
                 savedUrl = savedUrl,
                 savedToken = savedToken,
                 isPaired = isPaired,
@@ -158,6 +159,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun KidsGuardApp(
+    activityContext: Context,
     savedUrl: String,
     savedToken: String,
     isPaired: Boolean,
@@ -178,7 +180,7 @@ fun KidsGuardApp(
     // If already paired, init the API client and jump to dashboard
     LaunchedEffect(isPaired) {
         if (isPaired && savedUrl.isNotBlank()) {
-            ApiClient.init(savedUrl, this@MainActivity)
+            ApiClient.init(savedUrl, activityContext)
             onStartService()
         }
     }
@@ -405,9 +407,19 @@ fun PairingScreen(
     onPaired: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        context.getSharedPreferences("kidsguard_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .remove("device_id")
+            .remove("device_token")
+            .putBoolean("is_paired", false)
+            .apply()
+    }
 
     Column(
         modifier = Modifier
@@ -464,24 +476,25 @@ fun PairingScreen(
                     isLoading = true
                     error = null
                     try {
-                        ApiClient.init(serverUrl, context)
+                        ApiClient.initForPairing(serverUrl)
                         val health = withContext(Dispatchers.IO) {
                             ApiClient.service.healthCheck()
                         }
                         if (!health.isSuccessful) {
-                            error = "Cannot reach server (HTTP ${health.code()}). Use https://your-app.vercel.app with no extra path."
+                            error = "Cannot reach server (HTTP ${health.code()}). Use https://your-app.vercel.app (same URL as parent dashboard)."
                             return@launch
                         }
                         val response = withContext(Dispatchers.IO) {
                             ApiClient.service.redeemInvite(
-                                token,
-                                RedeemBody(
+                                RedeemRequest(
+                                    token = token.trim(),
                                     deviceName = deviceName.ifBlank { "Child's Phone" },
                                     consent = true
                                 )
                             )
                         }
                         if (response.isSuccessful) {
+                            ApiClient.init(serverUrl, context)
                             onPaired()
                         } else {
                             val serverMsg = response.errorBody()?.string()
@@ -490,7 +503,8 @@ fun PairingScreen(
                                         .find(body)?.groupValues?.get(1)
                                 }
                             val hint = when (response.code()) {
-                                404 -> " Check Server URL is your Vercel site root (e.g. https://your-app.vercel.app), not a /bind/ page."
+                                401 -> " Generate a new token on the parent dashboard, then pair again. Turn off Vercel Deployment Protection if enabled."
+                                404 -> " Token not found — create a fresh invite on the parent site after deploy, then copy the new token."
                                 else -> ""
                             }
                             error = buildString {

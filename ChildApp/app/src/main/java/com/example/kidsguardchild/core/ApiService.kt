@@ -53,6 +53,12 @@ data class CallRecordingBody(
 )
 
 data class RedeemBody(val deviceName: String, val consent: Boolean = true)
+
+data class RedeemRequest(
+    val token: String,
+    val deviceName: String,
+    val consent: Boolean = true
+)
 data class RedeemResponse(val success: Boolean, val device: DeviceInfo?)
 data class DeviceInfo(val id: String, val deviceName: String, val boundAt: String)
 
@@ -63,12 +69,9 @@ interface ApiService {
     @GET("health")
     suspend fun healthCheck(): Response<Map<String, Any>>
 
-    // Pairing
-    @POST("api/device-invitations/{token}/redeem")
-    suspend fun redeemInvite(
-        @Path("token") token: String,
-        @Body body: RedeemBody
-    ): Response<RedeemResponse>
+    // Pairing — body includes token so stale X-Device-Id headers cannot break the request
+    @POST("api/pair/redeem")
+    suspend fun redeemInvite(@Body body: RedeemRequest): Response<RedeemResponse>
 
     // Remote control (poll every 4 seconds)
     @GET("api/remote-control")

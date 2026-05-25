@@ -542,10 +542,10 @@ export async function createDeviceMediaInvitation(fileName: string): Promise<Dev
 }
 
 export async function redeemDeviceInvitation(token: string, deviceName: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/device-invitations/${token}/redeem`, {
+  const response = await fetch(`${API_BASE_URL}/api/pair/redeem`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deviceName, consent: true })
+    body: JSON.stringify({ token, deviceName, consent: true })
   });
   if (!response.ok) {
     throw new Error(`Failed to bind device: ${response.status}`);

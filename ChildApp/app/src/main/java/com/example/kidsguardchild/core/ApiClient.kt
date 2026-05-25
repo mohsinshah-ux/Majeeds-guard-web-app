@@ -21,15 +21,30 @@ object ApiClient {
 
     val baseUrl: String get() = _baseUrl
 
-    fun init(baseUrl: String, context: Context? = null) {
+    /** Normalize parent dashboard URL (scheme + host only). */
+    fun normalizeServerUrl(baseUrl: String): String {
         var normalized = baseUrl.trim()
-        // Allow pasting an invite link; keep only scheme + host for API calls.
         normalized = normalized.replace(Regex("/bind/.*$"), "")
+        normalized = normalized.replace(Regex("/api/?$"), "")
         normalized = normalized.replace(Regex("/+$"), "")
         if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
             normalized = "https://$normalized"
         }
-        _baseUrl = "$normalized/"
+        return "$normalized/"
+    }
+
+    /** Pairing / health checks — never send X-Device-Id (avoids HTTP 401 on Vercel). */
+    fun initForPairing(baseUrl: String) {
+        buildClient(baseUrl, attachDeviceId = false, context = null)
+    }
+
+    /** After pairing — attaches X-Device-Id for telemetry uploads. */
+    fun init(baseUrl: String, context: Context? = null) {
+        buildClient(baseUrl, attachDeviceId = true, context = context)
+    }
+
+    private fun buildClient(baseUrl: String, attachDeviceId: Boolean, context: Context?) {
+        _baseUrl = normalizeServerUrl(baseUrl)
 
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
@@ -37,7 +52,13 @@ object ApiClient {
 
         val deviceInterceptor = Interceptor { chain ->
             val request = chain.request()
-            val deviceId = context?.let { PermissionHelper.getDeviceId(it) }
+            val path = request.url.encodedPath
+            val isPairingCall = path.contains("/device-invitations/") && path.endsWith("/redeem")
+            val deviceId = if (attachDeviceId && !isPairingCall) {
+                context?.let { PermissionHelper.getDeviceId(it) }
+            } else {
+                null
+            }
             val newRequest = if (!deviceId.isNullOrBlank()) {
                 request.newBuilder()
                     .addHeader("X-Device-Id", deviceId)

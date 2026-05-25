@@ -817,7 +817,21 @@ app.post("/api/device-media-invitations", (req, res) => {
 
 app.post("/api/device-invitations/:token/redeem", (req, res) => {
   const { token } = req.params;
-  const result = redeemDeviceInvitation(token, req.body);
+  const result = redeemDeviceInvitation(token, req.body ?? {});
+  res.status(result.status).json(result.body);
+});
+
+/** Redeem without device header — some clients send stale X-Device-Id before pairing completes. */
+app.post("/api/pair/redeem", (req, res) => {
+  const token =
+    (typeof req.body?.token === "string" && req.body.token.trim()) ||
+    (typeof req.query?.token === "string" && req.query.token.trim()) ||
+    "";
+  if (!token) {
+    res.status(400).json({ error: "Pairing token is required" });
+    return;
+  }
+  const result = redeemDeviceInvitation(token, req.body ?? {});
   res.status(result.status).json(result.body);
 });
 
