@@ -183,6 +183,7 @@ loadPersistedState(allStateStores());
 
 if (process.env.VERCEL) {
   app.use((req, res, next) => {
+    loadPersistedState(allStateStores());
     res.on("finish", () => persistState());
     next();
   });

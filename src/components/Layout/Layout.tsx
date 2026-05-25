@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo } from 'react';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { useSelectedDevice } from '@/context/SelectedDeviceContext';
 import { Outlet } from 'react-router-dom';
 import { Header, DemoBanner, SidebarMobileToggle } from './Header';
@@ -68,7 +68,7 @@ const permissionGroups = [
 
 // ─── Main Layout ──────────────────────────────────────────────────────────────
 export function Layout() {
-  const { devices } = useSelectedDevice();
+  const { devices, refreshDevices } = useSelectedDevice();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [bindModalOpen, setBindModalOpen] = useState(false);
@@ -126,7 +126,8 @@ export function Layout() {
 
   const closeModal = useCallback(() => {
     setBindModalOpen(false);
-  }, []);
+    void refreshDevices();
+  }, [refreshDevices]);
 
   // ── Generate Invite Link via backend ────────────────────────────────────────
   const handleGenerateInvite = useCallback(async () => {
@@ -137,6 +138,7 @@ export function Layout() {
       const data = await createDeviceInvitation(deviceLabel.trim() || 'Child Device');
       setInvitation(data);
       setBindStep('generate');
+      void refreshDevices();
     } catch {
       const token = Math.random().toString(36).slice(2, 12);
       const fallbackUrl = `${window.location.origin}/bind/${token}`;
@@ -146,7 +148,15 @@ export function Layout() {
     } finally {
       setGenerating(false);
     }
-  }, [deviceLabel]);
+  }, [deviceLabel, refreshDevices]);
+
+  // Poll for newly paired devices while invite is active
+  useEffect(() => {
+    if (bindStep !== 'generate' || !bindModalOpen) return;
+    void refreshDevices();
+    const interval = setInterval(() => void refreshDevices(), 3000);
+    return () => clearInterval(interval);
+  }, [bindStep, bindModalOpen, refreshDevices]);
 
   // ── Copy invite link ─────────────────────────────────────────────────────────
   const handleCopy = useCallback(() => {
@@ -312,88 +322,17 @@ export function Layout() {
                 {bindStep === 'choose' && (
                   <div className="space-y-5">
 
-                    {/* Step 1: Get the App */}
-                    <div className="border border-blue-500/25 rounded-xl bg-blue-950/10 p-4 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          <Smartphone className="w-4 h-4" />
-                        </div>
-                        <h3 className="text-sm font-semibold text-blue-300">Step 1 — Download &amp; Install the App</h3>
-                        <span className="ml-auto text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Required</span>
-                      </div>
-
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Install the <strong className="text-white">Parental Control Monitoring App</strong> APK on the child's Android phone.
-                      </p>
-
-                      <div className="space-y-2">
-                        <a
-                          href="/parental-control-monitoring.apk"
-                          download="parental-control-monitoring.apk"
-                          className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(37,99,235,0.25)] border border-blue-400/20"
-                        >
-                          <Download className="w-4 h-4" /> Download Monitoring App (APK)
-                        </a>
-                        <p className="text-[10px] text-center text-slate-400">
-                          File Size: <strong>4.29 MB</strong> · Signed Android Package
-                        </p>
-                      </div>
-
-                      <details className="group border border-slate-800 rounded-lg bg-slate-950/40" open>
-                        <summary className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer p-2.5 flex items-center justify-between select-none uppercase tracking-wider">
-                          <span>📋 Step-by-Step Connection Instructions</span>
-                          <span className="text-xs group-open:rotate-180 transition-transform">▼</span>
-                        </summary>
-                        <div className="p-3 border-t border-slate-900 space-y-3 text-[11px] text-slate-300">
-                          <p className="font-semibold text-slate-200">Follow these steps to connect your device:</p>
-                          <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <span className="text-emerald-400 font-mono font-bold">1.</span>
-                              <span><strong>Download the APK:</strong> Click the "Download Monitoring App" button above on this PC or directly on your phone's browser.</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-emerald-400 font-mono font-bold">2.</span>
-                              <span><strong>Install on Child's Phone:</strong> Transfer the downloaded APK file to the target Android phone. Allow installation from <em>"Unknown Sources"</em> if prompted.</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-emerald-400 font-mono font-bold">3.</span>
-                              <span><strong>Scan invitation:</strong> Scroll down, generate an invitation link, and scan the QR code using the child's phone camera.</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-emerald-400 font-mono font-bold">4.</span>
-                              <span><strong>Complete pairing:</strong> On the phone screen, enter a device label, read the consent notice, and tap <em>"Pair &amp; Activate"</em>.</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-emerald-400 font-mono font-bold">5.</span>
-                              <span><strong>Start reporting data:</strong> Toggle the simulated GPS tracker or tap Call/SMS/Social buttons on the phone to feed live data straight to your dashboard!</span>
-                            </div>
-                          </div>
-                        </div>
-                      </details>
-
-                      <div className="bg-amber-950/20 border border-amber-700/30 rounded-lg px-3 py-2 text-[10px] text-amber-400 flex items-start gap-2">
-                        <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <span>Both devices must be on the same Wi-Fi. Allow "Unknown Sources" when installing on Android.</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="h-px bg-slate-800 flex-1" />
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest font-mono">Then pair the device</span>
-                      <div className="h-px bg-slate-800 flex-1" />
-                    </div>
-
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Once the app is installed on the child's phone, pair it with this dashboard using one of the methods below.
+                      Generate a pairing code for the child app. The device will appear in the sidebar dropdown after pairing.
                     </p>
 
-                    {/* Option A: Invite Link / QR */}
+                    {/* Invite Link / QR */}
                     <div className="border border-emerald-500/25 rounded-xl bg-slate-950/40 p-5 space-y-4">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
                           <QrCode className="w-4 h-4" />
                         </div>
-                        <h3 className="text-sm font-semibold text-emerald-400">Option A — Invite Link &amp; QR Code</h3>
+                        <h3 className="text-sm font-semibold text-emerald-400">Invite Link &amp; QR Code</h3>
                         <span className="ml-auto text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Recommended</span>
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
@@ -470,8 +409,17 @@ export function Layout() {
                     </div>
 
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Install the <strong className="text-white">Child Monitoring App</strong> on the child's device, launch it, and use the QR code or manually enter the configuration below.
+                      Open the child app on the phone, enter the <strong className="text-white">Server URL</strong> and <strong className="text-white">Pairing Token</strong> below, then tap Pair &amp; Activate. The device should appear in the dropdown within a few seconds.
                     </p>
+
+                    {devices.length > 0 && (
+                      <div className="p-3 bg-emerald-950/30 border border-emerald-700/40 rounded-lg text-[11px] text-emerald-300 flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>
+                          <strong>{devices.length} device(s) connected.</strong> Select one from the green bar at the top of the sidebar.
+                        </span>
+                      </div>
+                    )}
 
                     {/* QR Code */}
                     <div className="flex flex-col items-center justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl">

@@ -1,4 +1,4 @@
-package com.example.kidsguardchild
+﻿package com.example.kidsguardchild
 
 import android.Manifest
 import android.app.admin.DevicePolicyManager
@@ -41,12 +41,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.kidsguardchild.core.*
+import com.example.kidsguardchild.ui.AccountDetailsTab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// ─── Color Palette ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Color Palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 private val DarkBg = Color(0xFF020617)
 private val CardBg = Color(0xFF090D1F)
@@ -90,13 +91,18 @@ class MainActivity : ComponentActivity() {
                 savedUrl = savedUrl,
                 savedToken = savedToken,
                 isPaired = isPaired,
-                onPaired = { url, token ->
+                onPaired = { url, token, label ->
                     prefs.edit()
                         .putString("server_url", url)
                         .putString("device_token", token)
                         .putString("device_id", token)
                         .putBoolean("is_paired", true)
                         .apply()
+                    AccountPrefs.markPaired(this, label)
+                },
+                onLogout = {
+                    stopService(Intent(this, ParentalControlService::class.java))
+                    AccountPrefs.clearSession(this)
                 },
                 onStartService = {
                     val intent = Intent(this, ParentalControlService::class.java)
@@ -157,7 +163,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// ─── Root Composable ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Root Composable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun KidsGuardApp(
@@ -165,7 +171,8 @@ fun KidsGuardApp(
     savedUrl: String,
     savedToken: String,
     isPaired: Boolean,
-    onPaired: (String, String) -> Unit,
+    onPaired: (String, String, String) -> Unit,
+    onLogout: () -> Unit,
     onStartService: () -> Unit,
     onRequestLocationPermission: () -> Unit,
     onRequestContactsPermission: () -> Unit,
@@ -226,7 +233,7 @@ fun KidsGuardApp(
                         token = pairingToken,
                         onTokenChange = { pairingToken = it },
                         onPaired = {
-                            onPaired(serverUrl, pairingToken)
+                            onPaired(serverUrl, pairingToken, deviceName.ifBlank { "Child Device" })
                             currentStep = 3
                         },
                         onBack = { currentStep = 1 }
@@ -243,14 +250,22 @@ fun KidsGuardApp(
                             currentStep = 4
                         }
                     )
-                    4 -> DashboardScreen()
+                    4 -> DashboardScreen(
+                        onLogout = {
+                            onLogout()
+                            currentStep = 0
+                            serverUrl = activityContext.getString(R.string.default_server_url)
+                            pairingToken = ""
+                            deviceName = ""
+                        }
+                    )
                 }
             }
         }
     }
 }
 
-// ─── Step 0: Splash Screen ───────────────────────────────────────────────────
+// â”€â”€â”€ Step 0: Splash Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun SplashScreen(onNext: () -> Unit) {
@@ -319,7 +334,7 @@ fun SplashScreen(onNext: () -> Unit) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Secure • Consented • Transparent",
+            text = "Secure â€¢ Consented â€¢ Transparent",
             fontSize = 10.sp,
             color = TextMuted,
             letterSpacing = 2.sp
@@ -327,7 +342,7 @@ fun SplashScreen(onNext: () -> Unit) {
     }
 }
 
-// ─── Step 1: Server Setup ────────────────────────────────────────────────────
+// â”€â”€â”€ Step 1: Server Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun ServerSetupScreen(
@@ -398,7 +413,7 @@ fun ServerSetupScreen(
     }
 }
 
-// ─── Step 2: Pairing / Token Redeem ──────────────────────────────────────────
+// â”€â”€â”€ Step 2: Pairing / Token Redeem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun PairingScreen(
@@ -506,7 +521,7 @@ fun PairingScreen(
                                 }
                             val hint = when (response.code()) {
                                 401 -> " Generate a new token on the parent dashboard, then pair again. Turn off Vercel Deployment Protection if enabled."
-                                404 -> " Token not found — create a fresh invite on the parent site after deploy, then copy the new token."
+                                404 -> " Token not found â€” create a fresh invite on the parent site after deploy, then copy the new token."
                                 else -> ""
                             }
                             error = buildString {
@@ -537,12 +552,12 @@ fun PairingScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         TextButton(onClick = onBack) {
-            Text("← Back to server setup", color = TextMuted, fontSize = 12.sp)
+            Text("â† Back to server setup", color = TextMuted, fontSize = 12.sp)
         }
     }
 }
 
-// ─── Step 3: Permission Wizard ───────────────────────────────────────────────
+// â”€â”€â”€ Step 3: Permission Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun PermissionsScreen(
@@ -639,7 +654,7 @@ fun PermissionsScreen(
         Text("Grant Permissions", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Grant each permission below. Monitoring uses only real device data — nothing is simulated.",
+            "Grant each permission below. Monitoring uses only real device data â€” nothing is simulated.",
             fontSize = 12.sp, color = TextSecondary, textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
@@ -742,10 +757,10 @@ fun PermissionCard(item: PermissionItem) {
     }
 }
 
-// ─── Step 4: Live Dashboard ──────────────────────────────────────────────────
+// â”€â”€â”€ Step 4: Live Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(onLogout: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -770,8 +785,8 @@ fun DashboardScreen() {
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Build, contentDescription = "Simulator") },
-                    label = { Text("Simulator") },
+                    icon = { Icon(Icons.Default.AccountCircle, contentDescription = "Account") },
+                    label = { Text("Account") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = Emerald,
                         selectedTextColor = Emerald,
@@ -787,7 +802,7 @@ fun DashboardScreen() {
             if (selectedTab == 0) {
                 StatusTab()
             } else {
-                SimulatorTab()
+                AccountDetailsTab(onLogout = onLogout)
             }
         }
     }
@@ -932,589 +947,6 @@ fun StatusTab() {
     }
 }
 
-@Composable
-fun SimulatorTab() {
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    // States for battery
-    var batteryInput by remember { mutableFloatStateOf(50f) }
-
-    // States for Location
-    var locLat by remember { mutableStateOf("37.7749") }
-    var locLng by remember { mutableStateOf("-122.4194") }
-    var locPlace by remember { mutableStateOf("Golden Gate Park") }
-
-    // States for Call Log
-    var callContact by remember { mutableStateOf("Alex Mercer") }
-    var callNumber by remember { mutableStateOf("+1-555-0199") }
-    var callType by remember { mutableStateOf("Incoming") }
-    var callDuration by remember { mutableStateOf("02:45") }
-
-    // States for Message
-    var msgFrom by remember { mutableStateOf("Sophia") }
-    var msgChannel by remember { mutableStateOf("WhatsApp") }
-    var msgPreview by remember { mutableStateOf("Are you coming to the secret party?") }
-
-    // States for Social Chats
-    var socialApp by remember { mutableStateOf("Instagram") }
-    var socialContact by remember { mutableStateOf("lucas_swy") }
-    var socialPreview by remember { mutableStateOf("Check out this link: cool-hacks.com") }
-
-    // States for VoIP / App Call
-    var appCallName by remember { mutableStateOf("Daniel") }
-    var appCallPhone by remember { mutableStateOf("WhatsApp Audio Call") }
-    var appCallType by remember { mutableStateOf("Incoming") }
-    var appCallDuration by remember { mutableStateOf("05:12") }
-    var appCallStatus by remember { mutableStateOf("Answered") }
-
-    // States for Contacts
-    var contactName by remember { mutableStateOf("Michael Scott") }
-    var contactPhone by remember { mutableStateOf("+1-555-0147") }
-    var contactMail by remember { mutableStateOf("mscott@dundermifflin.com") }
-    var contactAddress by remember { mutableStateOf("1725 Slough Avenue, Scranton, PA") }
-    var contactBlocked by remember { mutableStateOf(false) }
-
-    // States for App Usage
-    var usageApp by remember { mutableStateOf("TikTok") }
-    var usageDuration by remember { mutableStateOf("1h 24m") }
-
-    // States for Installed App
-    var installAppName by remember { mutableStateOf("Telegram") }
-    var installAppPkg by remember { mutableStateOf("org.telegram.messenger") }
-    var installAppSize by remember { mutableStateOf("84 MB") }
-    var installAppBlocked by remember { mutableStateOf(false) }
-
-    // States for Browser History
-    var browserQuery by remember { mutableStateOf("how to bypass parental lock") }
-    var browserUrl by remember { mutableStateOf("https://google.com/search?q=bypass+parental+lock") }
-
-    // States for Wifi Log
-    var wifiSsid by remember { mutableStateOf("Starbucks_WiFi_Free") }
-    var wifiStatus by remember { mutableStateOf("Connected") }
-    var wifiSignal by remember { mutableStateOf("Strong") }
-
-    // States for Safety Alert
-    var alertType by remember { mutableStateOf("Geofence") }
-    var alertSeverity by remember { mutableStateOf("Warning") }
-    var alertMsg by remember { mutableStateOf("Child exited school geofence area") }
-
-    // States for Photos
-    var photoTitle by remember { mutableStateOf("Simulated Screen Capture") }
-    var photoUrl by remember { mutableStateOf("https://images.unsplash.com/photo-1546054454-aa26e2b734c7?auto=format&fit=crop&w=400&q=80") }
-
-    // States for Keylogger
-    var keylogApp by remember { mutableStateOf("Chrome") }
-    var keylogText by remember { mutableStateOf("i hate parental controls") }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            "DEVELOPER DATA SIMULATOR",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary
-        )
-        Text(
-            "Simulate and push telemetry data directly to the Parental Control dashboard server to test client-server integration instantly.",
-            fontSize = 11.sp,
-            color = TextSecondary
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(BorderColor)
-        )
-
-        // 1. Battery
-        SimulatorCard(
-            title = "🔋 Battery Percentage Simulator",
-            buttonText = "Send Battery Level",
-            onSimulate = {
-                scope.launch {
-                    val lvl = batteryInput.toInt()
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postBattery(BatteryBody(lvl))
-                    }
-                    showToast(context, if (res.isSuccessful) "Battery $lvl% sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Battery Level: ${batteryInput.toInt()}%", fontSize = 12.sp, color = TextPrimary)
-                }
-                Slider(
-                    value = batteryInput,
-                    onValueChange = { batteryInput = it },
-                    valueRange = 0f..100f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Emerald,
-                        activeTrackColor = Emerald,
-                        inactiveTrackColor = BorderColor
-                    )
-                )
-            }
-        }
-
-        // 2. Location
-        SimulatorCard(
-            title = "📍 Location / GPS Simulator",
-            buttonText = "Send Location Update",
-            onSimulate = {
-                scope.launch {
-                    val latVal = locLat.toDoubleOrNull() ?: 0.0
-                    val lngVal = locLng.toDoubleOrNull() ?: 0.0
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postLocation(LocationBody(latVal, lngVal, locPlace))
-                    }
-                    showToast(context, if (res.isSuccessful) "Location sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = locLat, onValueChange = { locLat = it }, label = "Latitude", placeholder = "37.7749")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = locLng, onValueChange = { locLng = it }, label = "Longitude", placeholder = "-122.4194")
-                    }
-                }
-                DarkTextFieldCompact(value = locPlace, onValueChange = { locPlace = it }, label = "Place / Street Name", placeholder = "Golden Gate Park")
-            }
-        }
-
-        // 3. Call Log
-        SimulatorCard(
-            title = "📞 Cellular Call Log Simulator",
-            buttonText = "Send Call Log",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postCallLog(CallLogBody(callContact, callNumber, callType, callDuration))
-                    }
-                    showToast(context, if (res.isSuccessful) "Call log sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = callContact, onValueChange = { callContact = it }, label = "Contact Name", placeholder = "Alex Mercer")
-                DarkTextFieldCompact(value = callNumber, onValueChange = { callNumber = it }, label = "Phone Number", placeholder = "+1-555-0199")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = callType, onValueChange = { callType = it }, label = "Type (Incoming/Outgoing/Missed)", placeholder = "Incoming")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = callDuration, onValueChange = { callDuration = it }, label = "Duration (MM:SS)", placeholder = "02:45")
-                    }
-                }
-            }
-        }
-
-        // 4. SMS / Message
-        SimulatorCard(
-            title = "💬 SMS / Direct Message Simulator",
-            buttonText = "Send Message",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postMessage(MessageBody(msgFrom, msgChannel, msgPreview))
-                    }
-                    showToast(context, if (res.isSuccessful) "Message sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = msgFrom, onValueChange = { msgFrom = it }, label = "Sender", placeholder = "Sophia")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = msgChannel, onValueChange = { msgChannel = it }, label = "Channel (SMS/WhatsApp)", placeholder = "WhatsApp")
-                    }
-                }
-                DarkTextFieldCompact(value = msgPreview, onValueChange = { msgPreview = it }, label = "Message Content", placeholder = "Are you there?")
-            }
-        }
-
-        // 5. Social Chats
-        SimulatorCard(
-            title = "📱 Social App Chat Simulator",
-            buttonText = "Send Social Chat",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postSocialChat(SocialChatBody(socialApp, socialContact, socialPreview))
-                    }
-                    showToast(context, if (res.isSuccessful) "Social chat sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = socialApp, onValueChange = { socialApp = it }, label = "Social App", placeholder = "Instagram")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = socialContact, onValueChange = { socialContact = it }, label = "Contact Handle", placeholder = "lucas_swy")
-                    }
-                }
-                DarkTextFieldCompact(value = socialPreview, onValueChange = { socialPreview = it }, label = "Last Message Preview", placeholder = "Check this link")
-            }
-        }
-
-        // 6. VoIP / App Call
-        SimulatorCard(
-            title = "🔊 VoIP / App Call Simulator",
-            buttonText = "Send VoIP Call",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postAppCall(
-                            AppCallBody(
-                                name = appCallName,
-                                phone = appCallPhone,
-                                app = appCallPhone,
-                                type = appCallType,
-                                duration = appCallDuration,
-                                status = appCallStatus
-                            )
-                        )
-                    }
-                    showToast(context, if (res.isSuccessful) "VoIP Call sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = appCallName, onValueChange = { appCallName = it }, label = "Name", placeholder = "Daniel")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = appCallPhone, onValueChange = { appCallPhone = it }, label = "App / Phone", placeholder = "WhatsApp Audio Call")
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = appCallType, onValueChange = { appCallType = it }, label = "Type", placeholder = "Incoming")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = appCallDuration, onValueChange = { appCallDuration = it }, label = "Duration", placeholder = "05:12")
-                    }
-                }
-                DarkTextFieldCompact(value = appCallStatus, onValueChange = { appCallStatus = it }, label = "Status", placeholder = "Answered")
-            }
-        }
-
-        // 7. Browser History
-        SimulatorCard(
-            title = "🌐 Browser Search & URL Simulator",
-            buttonText = "Send History Entry",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postBrowserHistory(BrowserHistoryBody(browserQuery, browserUrl))
-                    }
-                    showToast(context, if (res.isSuccessful) "Browser entry sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = browserQuery, onValueChange = { browserQuery = it }, label = "Search Query / Page Title", placeholder = "how to bypass parental lock")
-                DarkTextFieldCompact(value = browserUrl, onValueChange = { browserUrl = it }, label = "URL", placeholder = "https://google.com/...")
-            }
-        }
-
-        // 8. Keylogger
-        SimulatorCard(
-            title = "⌨️ Keylogger Keystroke Simulator",
-            buttonText = "Send Keystroke Record",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postKeylog(KeylogBody(keylogApp, keylogText))
-                    }
-                    showToast(context, if (res.isSuccessful) "Keylog sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = keylogApp, onValueChange = { keylogApp = it }, label = "Active App", placeholder = "Chrome")
-                DarkTextFieldCompact(value = keylogText, onValueChange = { keylogText = it }, label = "Typed Keyboard Text", placeholder = "i hate parental controls")
-            }
-        }
-
-        // 9. Safety Alert
-        SimulatorCard(
-            title = "⚠️ Safety System Alert Simulator",
-            buttonText = "Send System Alert",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postSafetyAlert(SafetyAlertBody(alertType, alertSeverity, alertMsg))
-                    }
-                    showToast(context, if (res.isSuccessful) "Safety alert sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = alertType, onValueChange = { alertType = it }, label = "Alert Type", placeholder = "Geofence")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = alertSeverity, onValueChange = { alertSeverity = it }, label = "Severity (Info/Warning/Danger)", placeholder = "Warning")
-                    }
-                }
-                DarkTextFieldCompact(value = alertMsg, onValueChange = { alertMsg = it }, label = "Alert message details", placeholder = "Child exited school area")
-            }
-        }
-
-        // 10. Installed Apps
-        SimulatorCard(
-            title = "📦 Installed Application Simulator",
-            buttonText = "Send Installed App",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postInstalledApp(InstalledAppBody(installAppName, installAppPkg, installAppSize, installAppBlocked))
-                    }
-                    showToast(context, if (res.isSuccessful) "Installed app report sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = installAppName, onValueChange = { installAppName = it }, label = "Application Name", placeholder = "Telegram")
-                DarkTextFieldCompact(value = installAppPkg, onValueChange = { installAppPkg = it }, label = "Package Name ID", placeholder = "org.telegram.messenger")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = installAppSize, onValueChange = { installAppSize = it }, label = "App Disk Size", placeholder = "84 MB")
-                    }
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Text("Blocked:", fontSize = 11.sp, color = TextMuted)
-                        Checkbox(
-                            checked = installAppBlocked,
-                            onCheckedChange = { installAppBlocked = it },
-                            colors = CheckboxDefaults.colors(checkedColor = Emerald, uncheckedColor = BorderColor)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 11. Photos
-        SimulatorCard(
-            title = "🖼️ Screenshot / Gallery Photo Simulator",
-            buttonText = "Send Simulated Screenshot",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postPhoto(PhotoBody(photoUrl, photoTitle))
-                    }
-                    showToast(context, if (res.isSuccessful) "Photo uploaded successfully!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = photoTitle, onValueChange = { photoTitle = it }, label = "Photo Title / Caption", placeholder = "Simulated Screen Capture")
-                DarkTextFieldCompact(value = photoUrl, onValueChange = { photoUrl = it }, label = "Direct Image URL", placeholder = "https://images.unsplash.com/photo-...")
-            }
-        }
-
-        // 12. App Usage
-        SimulatorCard(
-            title = "📊 App Screen Time Usage Simulator",
-            buttonText = "Send Usage Stat",
-            onSimulate = {
-                scope.launch {
-                    val colors = listOf("#25D366", "#FF0000", "#000000", "#1877F2")
-                    val clr = colors[Math.abs(usageApp.hashCode()) % colors.size]
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postUsageStat(UsageStatBody(usageApp, usageDuration, usageApp.take(1), clr))
-                    }
-                    showToast(context, if (res.isSuccessful) "Usage statistics sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = usageApp, onValueChange = { usageApp = it }, label = "App Name", placeholder = "TikTok")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = usageDuration, onValueChange = { usageDuration = it }, label = "Time Spent (Hh Mm)", placeholder = "1h 24m")
-                    }
-                }
-            }
-        }
-
-        // 13. Contacts
-        SimulatorCard(
-            title = "📇 Address Book Contacts Simulator",
-            buttonText = "Send Contact Record",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postContact(ContactBody(contactName, contactPhone, contactMail, contactAddress, contactBlocked))
-                    }
-                    showToast(context, if (res.isSuccessful) "Contact record sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = contactName, onValueChange = { contactName = it }, label = "Full Name", placeholder = "Michael Scott")
-                DarkTextFieldCompact(value = contactPhone, onValueChange = { contactPhone = it }, label = "Phone Number", placeholder = "+1-555-0147")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = contactMail, onValueChange = { contactMail = it }, label = "Email (Optional)", placeholder = "mscott@dundermifflin.com")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = contactAddress, onValueChange = { contactAddress = it }, label = "Address (Optional)", placeholder = "Scranton, PA")
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Mark Blocked:", fontSize = 11.sp, color = TextMuted)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Checkbox(
-                        checked = contactBlocked,
-                        onCheckedChange = { contactBlocked = it },
-                        colors = CheckboxDefaults.colors(checkedColor = Emerald, uncheckedColor = BorderColor)
-                    )
-                }
-            }
-        }
-
-        // 14. Wi-Fi Connection
-        SimulatorCard(
-            title = "📶 Wi-Fi Connection Log Simulator",
-            buttonText = "Send Wi-Fi Log",
-            onSimulate = {
-                scope.launch {
-                    val res = withContext(Dispatchers.IO) {
-                        ApiClient.service.postWifiLog(WifiLogBody(wifiSsid, wifiStatus, wifiSignal))
-                    }
-                    showToast(context, if (res.isSuccessful) "Wi-Fi connection log sent!" else "Failed: ${res.code()}")
-                }
-            }
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkTextFieldCompact(value = wifiSsid, onValueChange = { wifiSsid = it }, label = "Network SSID", placeholder = "Starbucks_WiFi_Free")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = wifiStatus, onValueChange = { wifiStatus = it }, label = "Status (Connected/Disconnected)", placeholder = "Connected")
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        DarkTextFieldCompact(value = wifiSignal, onValueChange = { wifiSignal = it }, label = "Signal Strength (Strong/Medium/Weak)", placeholder = "Strong")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SimulatorCard(
-    title: String,
-    buttonText: String,
-    onSimulate: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        border = BorderStroke(1.dp, BorderColor),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = Emerald
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            content()
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = onSimulate,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Emerald.copy(alpha = 0.15f),
-                    contentColor = Emerald
-                ),
-                border = BorderStroke(1.dp, Emerald.copy(alpha = 0.3f))
-            ) {
-                Text(buttonText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DarkTextFieldCompact(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String
-) {
-    Column {
-        Text(
-            label.uppercase(),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextMuted,
-            letterSpacing = 1.sp
-        )
-        Spacer(modifier = Modifier.height(3.dp))
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = TextMuted, fontSize = 11.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Emerald.copy(alpha = 0.4f),
-                unfocusedBorderColor = BorderColor,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                cursorColor = Emerald,
-                focusedContainerColor = DarkBg,
-                unfocusedContainerColor = DarkBg
-            )
-        )
-    }
-}
-
-fun showToast(context: Context, msg: String) {
-    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-}
-
 data class ModuleStatus(
     val name: String,
     val icon: ImageVector,
@@ -1569,7 +1001,7 @@ fun ModuleCard(module: ModuleStatus, modifier: Modifier = Modifier) {
     }
 }
 
-// ─── Shared UI Components ────────────────────────────────────────────────────
+// â”€â”€â”€ Shared UI Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun StepIndicator(currentStep: Int, totalSteps: Int) {

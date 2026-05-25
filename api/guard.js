@@ -1,12 +1,15 @@
 /**
- * Single lightweight handler for health + pairing (shared /tmp state on Vercel).
- * Does NOT load Express — responds in milliseconds on cold start.
+ * Single Vercel API entry — health, pairing, device list, then Express for telemetry.
+ * One function = shared memory + shared /tmp (paired devices visible in dropdown).
  */
-import { createDeviceInvitation, redeemDeviceInvitation } from "../backend/pairing.js";
+import { createDeviceInvitation, redeemDeviceInvitation, refreshStateFromDisk } from "../backend/pairing.js";
+import { boundDevices } from "../backend/stores.js";
+
+let expressHandler;
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Device-Id");
 }
 
@@ -15,7 +18,18 @@ function pathOf(req) {
   return raw.split("?")[0];
 }
 
-export default function handler(req, res) {
+async function delegateToExpress(req, res) {
+  if (!expressHandler) {
+    const [{ default: serverless }, { app }] = await Promise.all([
+      import("serverless-http"),
+      import("../backend/server.js")
+    ]);
+    expressHandler = serverless(app);
+  }
+  return expressHandler(req, res);
+}
+
+export default async function handler(req, res) {
   cors(res);
 
   if (req.method === "OPTIONS") {
@@ -31,6 +45,12 @@ export default function handler(req, res) {
       service: "parental-control-backend",
       vercel: Boolean(process.env.VERCEL)
     });
+    return;
+  }
+
+  if (req.method === "GET" && (path === "/api/devices" || path.endsWith("/devices"))) {
+    refreshStateFromDisk();
+    res.status(200).json(boundDevices);
     return;
   }
 
@@ -66,5 +86,5 @@ export default function handler(req, res) {
     return;
   }
 
-  res.status(404).json({ error: `Guard route not found: ${req.method} ${path}` });
+  return delegateToExpress(req, res);
 }
