@@ -22,7 +22,11 @@ object ApiClient {
     val baseUrl: String get() = _baseUrl
 
     fun init(baseUrl: String, context: Context? = null) {
-        _baseUrl = baseUrl.trimEnd('/') + "/"
+        var normalized = baseUrl.trim()
+        // Allow pasting an invite link; keep only scheme + host for API calls.
+        normalized = normalized.replace(Regex("/bind/.*$"), "")
+        normalized = normalized.replace(Regex("/+$"), "")
+        _baseUrl = "$normalized/"
 
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC

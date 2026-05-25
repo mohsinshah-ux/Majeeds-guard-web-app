@@ -23,8 +23,9 @@ import {
   QrCode,
 } from 'lucide-react';
 
-// Backend API base URL
-const BACKEND = import.meta.env.VITE_BASE_URL || 'http://localhost:8080';
+import { getApiBaseUrl } from '@/lib/apiBase';
+
+const BACKEND = getApiBaseUrl();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type BindStep = 'choose' | 'generate' | 'apk';
@@ -88,7 +89,17 @@ export function Layout() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const serverUrl = useMemo(() => {
-    if (!invitation) return BACKEND;
+    if (typeof window !== 'undefined' && import.meta.env.PROD) {
+      const origin = window.location.origin;
+      if (!invitation) return origin;
+      try {
+        const url = new URL(invitation.inviteUrl);
+        return `${url.protocol}//${url.host}`;
+      } catch {
+        return origin;
+      }
+    }
+    if (!invitation) return BACKEND || (typeof window !== 'undefined' ? window.location.origin : '');
     try {
       const url = new URL(invitation.inviteUrl);
       return `${url.protocol}//${url.host}`;
@@ -506,7 +517,7 @@ export function Layout() {
                       <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 relative group hover:border-sky-500/30 transition-all">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block font-mono">Server Address</span>
                         <span className="text-sm font-mono font-bold text-sky-400 block truncate leading-none py-1 select-all">{serverUrl}</span>
-                        <p className="text-[9px] text-slate-500 font-medium">Remote controller target IP</p>
+                        <p className="text-[9px] text-slate-500 font-medium">Enter this in the child app Server URL field</p>
                         <button
                           type="button"
                           onClick={() => {

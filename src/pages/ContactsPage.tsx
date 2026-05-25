@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PageTitle, Card } from '@/components/ui';
 import { fetchContacts } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/apiBase';
 import { useSelectedDevice } from '@/context/SelectedDeviceContext';
 import { DEVICE_CHANGED_EVENT } from '@/lib/selectedDevice';
 import type { Contact } from '@/lib/api';
@@ -55,7 +56,7 @@ export function ContactsPage() {
   const handleBlockToggle = async (c: Contact) => {
     if (!hasDevice) return;
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL || ""}/api/contacts`, {
+      await fetch(`${getApiBaseUrl()}/api/contacts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...c, blocked: !c.blocked }),

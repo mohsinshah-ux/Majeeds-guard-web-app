@@ -3,8 +3,9 @@ import type { Message } from "@/data/messages";
 import type { LocationRecord } from "@/data/locationHistory";
 import type { ChatMessage } from "@/data/socialChats";
 import { getSelectedDeviceId, setSelectedDeviceId } from "@/lib/selectedDevice";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+const API_BASE_URL = getApiBaseUrl();
 
 function withDeviceQuery(path: string): string {
   const deviceId = getSelectedDeviceId();

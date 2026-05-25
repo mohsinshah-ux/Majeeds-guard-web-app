@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "start:backend": "node backend/server.js",
     "start": "npm run build && npm run start:backend",
+    "build:vercel": "npm run build",
     "github:sync": "git add -A && git commit -m \"chore: sync project\" && git push",
     "github:watch": "powershell -ExecutionPolicy Bypass -File scripts/watch-github-sync.ps1"
   },
@@ -26,7 +27,8 @@
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.13.1",
-    "recharts": "^3.7.0"
+    "recharts": "^3.7.0",
+    "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

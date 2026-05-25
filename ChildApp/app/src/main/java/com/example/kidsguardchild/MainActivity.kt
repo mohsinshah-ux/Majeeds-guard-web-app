@@ -363,7 +363,7 @@ fun ServerSetupScreen(
             value = serverUrl,
             onValueChange = onUrlChange,
             label = "Server URL",
-            placeholder = "http://192.168.1.100:8080",
+            placeholder = "https://your-app.vercel.app",
             keyboardType = KeyboardType.Uri
         )
 
@@ -477,7 +477,21 @@ fun PairingScreen(
                         if (response.isSuccessful) {
                             onPaired()
                         } else {
-                            error = "Pairing failed (HTTP ${response.code()}). The token may be invalid or expired."
+                            val serverMsg = response.errorBody()?.string()
+                                ?.let { body ->
+                                    Regex(""""error"\s*:\s*"([^"]+)"""")
+                                        .find(body)?.groupValues?.get(1)
+                                }
+                            val hint = when (response.code()) {
+                                404 -> " Check Server URL is your Vercel site root (e.g. https://your-app.vercel.app), not a /bind/ page."
+                                else -> ""
+                            }
+                            error = buildString {
+                                append("Pairing failed (HTTP ${response.code()}).")
+                                if (!serverMsg.isNullOrBlank()) append(" $serverMsg")
+                                else append(" The token may be invalid or expired.")
+                                append(hint)
+                            }
                         }
                     } catch (e: Exception) {
                         error = "Connection failed: ${e.message}"
