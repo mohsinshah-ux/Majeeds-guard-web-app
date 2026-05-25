@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Majeeds Testing Guard System</string>
+    <string name="notification_channel_id">kidsguard_monitor</string>
+    <string name="notification_channel_name">Majeeds Testing Guard Monitor</string>
+    <string name="notification_title">Majeeds Testing Guard Active</string>
+    <string name="notification_text">Monitoring active — Majeeds Testing Guard System</string>
+    <string name="device_admin_label">Child Safety Device Admin</string>
+    <string name="device_admin_description">Required for screen time limits and remote device management</string>
+</resources>

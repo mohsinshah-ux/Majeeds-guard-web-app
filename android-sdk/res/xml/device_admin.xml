@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    res/xml/device_admin.xml
+    ─────────────────────────
+    Declares the Device Admin policies this app uses.
+    Referenced from DeviceAdminReceiver's <meta-data> in AndroidManifest.xml.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- Required to call DevicePolicyManager.lockNow() -->
+        <force-lock />
+
+        <!-- Required to call DevicePolicyManager.setMaximumTimeToLock() -->
+        <limit-password />
+
+        <!-- Required to wipe device (not implemented by default — optional) -->
+        <!-- <wipe-data /> -->
+    </uses-policies>
+</device-admin>

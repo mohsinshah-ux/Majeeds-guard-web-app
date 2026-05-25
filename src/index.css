@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #e5ffe5;
+  background-color: #020617; /* near-black */
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #020617;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* App background layers (sidebar vs main) */
+.hacker-main-bg {
+  position: relative;
+  isolation: isolate;
+  background-color: #020617;
+  background-image:
+    radial-gradient(1200px 700px at 20% -10%, rgba(34, 197, 94, 0.12), transparent 55%),
+    radial-gradient(900px 600px at 110% 10%, rgba(34, 197, 94, 0.08), transparent 45%);
+  overflow: hidden;
+}
+
+.hacker-sidebar-bg {
+  background-color: #020617; /* deepest */
+  background-image: radial-gradient(700px 350px at 30% 0%, rgba(34, 197, 94, 0.08), transparent 55%);
+}
+
+/* Hacker scrollbars (apply via .hacker-scrollbar) */
+.hacker-scrollbar {
+  scrollbar-color: rgba(34, 197, 94, 0.55) rgba(2, 6, 23, 0.65);
+  scrollbar-width: thin;
+}
+.hacker-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.hacker-scrollbar::-webkit-scrollbar-track {
+  background: rgba(2, 6, 23, 0.65);
+  border-left: 1px solid rgba(148, 163, 184, 0.12);
+}
+.hacker-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.75), rgba(34, 197, 94, 0.25));
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.25);
+}
+.hacker-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(74, 222, 128, 0.9), rgba(34, 197, 94, 0.35));
+}
+
+/* Matrix-like ambient effects */
+.hacker-main-bg::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(34, 197, 94, 0.18), transparent 55%),
+    radial-gradient(circle at 80% 100%, rgba(34, 197, 94, 0.12), transparent 50%);
+  opacity: 0.75;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: hacker-orbit 40s linear infinite;
+  z-index: -1;
+}
+
+.hacker-main-bg::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(
+      rgba(15, 23, 42, 0.9),
+      rgba(15, 23, 42, 0.96)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(34, 197, 94, 0.18) 0,
+      rgba(34, 197, 94, 0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  mix-blend-mode: soft-light;
+  opacity: 0.75;
+  pointer-events: none;
+  animation: hacker-scan 14s linear infinite;
+  z-index: -1;
+}
+
+@keyframes hacker-orbit {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(-2%, -1%, 0) rotate(180deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+
+@keyframes hacker-scan {
+  0% {
+    background-position-y: 0;
+  }
+  100% {
+    background-position-y: 200px;
+  }
+}
+
+/* Hacker / neon theme */
+@theme {
+  /* primary = neon green */
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #22c55e;
+  --color-primary-600: #16a34a;
+  --color-primary-700: #15803d;
+  --color-primary-800: #166534;
+  --color-primary-900: #14532d;
+
+  /* Sidebar / surfaces */
+  --color-sidebar: #020617;
+  --color-sidebar-hover: #02091f;
+
+  /* Header device bar */
+  --color-teal: #16a34a;
+  --color-teal-light: #22c55e;
+
+  /* Alerts / accents */
+  --color-orange: #f97316;
+  --color-orange-light: #fb923c;
+
+  /* Active nav pill */
+  --color-nav-active: #052e16;
+  --color-nav-active-text: #4ade80;
+}

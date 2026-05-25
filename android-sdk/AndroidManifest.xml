@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    AndroidManifest.xml — Parental Control SDK
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    All permissions are declared here.
+    Runtime permissions are requested in the on-boarding UI.
+    Users must manually grant Special App Access permissions (Usage Access,
+    Notification Access, Device Admin) via the respective Settings screens
+    that the on-boarding flow deep-links to.
+-->
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.parentalcontrol.sdk">
+
+    <!-- ═══════════════════════════════════════════════
+         NORMAL permissions (auto-granted at install)
+         ═══════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ═══════════════════════════════════════════════
+         DANGEROUS permissions (runtime dialog required)
+         ═══════════════════════════════════════════════ -->
+
+    <!-- Location -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Contacts & Call Logs -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+
+    <!-- SMS (restricted on Android 10+; may require default SMS role) -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+
+    <!-- Media / Photos -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />     <!-- API 33+ -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />      <!-- API 33+ -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"   <!-- API ≤ 32 -->
+        android:maxSdkVersion="32" />
+
+    <!-- Browser history (AOSP browser only; deprecated on modern Android) -->
+    <uses-permission android:name="com.android.browser.permission.READ_HISTORY_BOOKMARKS" />
+
+    <!-- ═══════════════════════════════════════════════
+         SPECIAL APP ACCESS permissions
+         (user must grant via Settings deep-link)
+         ═══════════════════════════════════════════════ -->
+
+    <!-- Usage Access — grants UsageStatsManager data -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Notification Access — grants NotificationListenerService -->
+    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
+
+    <!-- Device Admin — grants DevicePolicyManager remote control -->
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
+
+    <!-- ══════════════════════════════════════════ -->
+
+    <application
+        android:label="KidsGuard"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
+
+        <!-- ── Main Foreground Service ─────────────────────────────── -->
+        <service
+            android:name=".ParentalControlService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|location" />
+
+        <!-- ── Notification Listener ───────────────────────────────── -->
+        <service
+            android:name=".modules.NotificationModule"
+            android:label="Child Safety Monitor"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- ── Device Admin Receiver ───────────────────────────────── -->
+        <receiver
+            android:name=".DeviceAdminReceiver"
+            android:label="Child Safety Device Admin"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ── Boot Receiver (restart service after reboot) ────────── -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter android:priority="500">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>
