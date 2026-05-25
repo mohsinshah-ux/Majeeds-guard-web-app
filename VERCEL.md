@@ -42,6 +42,7 @@ You do **not** need `VITE_API_BASE_URL` when API and web share one Vercel URL.
 | Symptom | Fix |
 |---------|-----|
 | Pairing failed HTTP 404 | API not reachable — confirm `vercel.json` is in the repo and redeploy. Server URL must be the site root, not a page path. |
+| Connection failed: timeout | Redeploy latest code (fast pairing API). Server URL must be `https://YOUR-PROJECT.vercel.app`, not `192.168.x.x`. Generate a **new** token after deploy. |
 | Invite link shows `192.168.x.x` | Set `APP_BASE_URL` in Vercel env and redeploy. |
 | Token invalid after deploy | Create a **new** invite after each cold deploy if persistence fails; pairing data is stored in `/tmp` on Vercel (best-effort). |
 

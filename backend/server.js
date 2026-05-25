@@ -19,6 +19,39 @@ import {
   defaultRemoteControlState
 } from "./deviceHelpers.js";
 import { loadPersistedState, savePersistedState } from "./stateStore.js";
+import {
+  allStateStores,
+  boundDevices,
+  deviceInvites,
+  geofenceStateByDevice,
+  geofences,
+  realAppCalls,
+  realBrowserHistory,
+  realCalendarEvents,
+  realCallLogs,
+  realCallRecordings,
+  realContacts,
+  realGeofenceEvents,
+  realInstalledApps,
+  realKeylogs,
+  realKeywordAlerts,
+  realLocations,
+  realMessages,
+  realNotifications,
+  realPhotos,
+  realSafetyAlerts,
+  realSocialChats,
+  realUsageStats,
+  realWifiLogs,
+  remoteControlByDevice,
+  trackedKeywords
+} from "./stores.js";
+import {
+  buildInviteUrl,
+  createDeviceInvitation,
+  createInviteToken,
+  redeemDeviceInvitation
+} from "./pairing.js";
 
 dotenv.config();
 
@@ -68,45 +101,6 @@ const corsOrigins = process.env.CORS_ORIGIN
       "http://localhost:5176", "http://127.0.0.1:5176",
       "http://localhost:5177", "http://127.0.0.1:5177",
     ];
-
-// Active pairing stores
-const deviceInvites = new Map();
-const boundDevices = [];
-
-// Separate REAL database arrays populated by paired phone simulator
-const realLocations = [];
-const realCallLogs = [];
-const realMessages = [];
-const realSocialChats = [];
-const realContacts = [];
-const realUsageStats = [];
-const realInstalledApps = [];
-const realNotifications = [];
-const realBrowserHistory = [];
-const realWifiLogs = [];
-const realSafetyAlerts = [];
-const realPhotos = [];
-const realKeylogs = [];
-const realAppCalls = [];
-const realCalendarEvents = [];
-const realGeofenceEvents = [];
-const realKeywordAlerts = [];
-const realCallRecordings = [];
-
-/** Parent-defined geofences — updated when child GPS is received. */
-const geofences = [
-  { id: "home", name: "Home", lat: 39.9526, lng: -75.1652, radiusM: 250, enabled: true },
-  { id: "school", name: "School", lat: 39.9612, lng: -75.1498, radiusM: 350, enabled: true }
-];
-const geofenceStateByDevice = {};
-
-/** Keywords to flag in SMS, chats, notifications, browser, keylogs. */
-let trackedKeywords = [
-  "robux", "hack", "drink", "hurt", "party", "secret", "password", "cheat"
-];
-
-/** Per-device remote control (parent commands → child poll). */
-const remoteControlByDevice = new Map();
 
 function uploadDeviceId(req, res) {
   const deviceId = resolveUploadDeviceId(req, boundDevices);
@@ -160,54 +154,8 @@ function getLocalIp() {
   return "localhost";
 }
 
-function createInviteToken() {
-  return Math.random().toString(36).slice(2, 12);
-}
-
-function getAppBaseUrl() {
-  if (process.env.APP_BASE_URL) {
-    return process.env.APP_BASE_URL.replace(/\/+$/, "");
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  const localIp = getLocalIp();
-  return `http://${localIp}:${port}`;
-}
-
-function buildInviteUrl(token) {
-  return `${getAppBaseUrl()}/bind/${token}`;
-}
-
-const stateStores = () => ({
-  deviceInvites,
-  boundDevices,
-  remoteControlByDevice,
-  geofenceStateByDevice,
-  geofences,
-  trackedKeywords,
-  realLocations,
-  realCallLogs,
-  realMessages,
-  realSocialChats,
-  realContacts,
-  realUsageStats,
-  realInstalledApps,
-  realNotifications,
-  realBrowserHistory,
-  realWifiLogs,
-  realSafetyAlerts,
-  realPhotos,
-  realKeylogs,
-  realAppCalls,
-  realCalendarEvents,
-  realGeofenceEvents,
-  realKeywordAlerts,
-  realCallRecordings
-});
-
 function persistState() {
-  savePersistedState(stateStores());
+  savePersistedState(allStateStores());
 }
 
 app.use(
@@ -231,15 +179,22 @@ app.use(
   })
 );
 
-loadPersistedState(stateStores());
+loadPersistedState(allStateStores());
 
 if (process.env.VERCEL) {
   app.use((req, res, next) => {
-    loadPersistedState(stateStores());
     res.on("finish", () => persistState());
     next();
   });
 }
+
+// Express 5 + serverless-http: body-parser waits forever unless socket is readable
+app.use((req, _res, next) => {
+  if (req.socket && req.socket.readable === false) {
+    req.socket.readable = true;
+  }
+  next();
+});
 
 app.use(express.json({ limit: "50mb" })); // allow screenshot base64 uploads
 
@@ -834,20 +789,8 @@ app.post("/api/remote-control/reset-data", (req, res) => {
 // ─── DEVICE PAIRING LIFECYCLE ───────────────────────────────────────────────
 app.post("/api/device-invitations", (req, res) => {
   const label = typeof req.body?.label === "string" ? req.body.label.trim() : "";
-  const token = createInviteToken();
-  const invitation = {
-    token,
-    label: label || "Child device invite",
-    type: "link",
-    createdAt: new Date().toISOString(),
-    redeemed: false
-  };
-  deviceInvites.set(token, invitation);
-  persistState();
-  res.status(201).json({
-    ...invitation,
-    inviteUrl: buildInviteUrl(token)
-  });
+  const result = createDeviceInvitation(label, port);
+  res.status(result.status).json(result.body);
 });
 
 app.post("/api/device-media-invitations", (req, res) => {
@@ -874,36 +817,8 @@ app.post("/api/device-media-invitations", (req, res) => {
 
 app.post("/api/device-invitations/:token/redeem", (req, res) => {
   const { token } = req.params;
-  const invite = deviceInvites.get(token);
-  if (!invite) {
-    res.status(404).json({ error: "Invitation token not found" });
-    return;
-  }
-  if (invite.redeemed) {
-    res.status(409).json({ error: "Invitation already redeemed" });
-    return;
-  }
-  const consent = req.body?.consent === true;
-  if (!consent) {
-    res.status(400).json({ error: "Explicit consent is required to bind device" });
-    return;
-  }
-  const deviceName = typeof req.body?.deviceName === "string" && req.body.deviceName.trim()
-    ? req.body.deviceName.trim()
-    : "Child Device";
-  const boundDevice = {
-    id: token,
-    deviceName,
-    source: invite.type,
-    boundAt: new Date().toISOString(),
-    battery: 100 // default battery until heartbeat syncs it
-  };
-  invite.redeemed = true;
-  boundDevices.push(boundDevice);
-  remoteControlByDevice.set(token, defaultRemoteControlState());
-  geofenceStateByDevice[token] = {};
-  persistState();
-  res.json({ success: true, device: boundDevice });
+  const result = redeemDeviceInvitation(token, req.body);
+  res.status(result.status).json(result.body);
 });
 
 // ─── REMOVE / UNBIND A DEVICE ────────────────────────────────────────────────
@@ -928,20 +843,20 @@ app.delete("/api/devices/:id", (req, res) => {
 
 if (!process.env.VERCEL) {
   app.use(express.static(distPath));
-}
-app.use((req, res, next) => {
-  if (req.path.startsWith("/api/") || req.path === "/health") {
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/") || req.path === "/health") {
+      next();
+      return;
+    }
+
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+      return;
+    }
+
     next();
-    return;
-  }
-
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-    return;
-  }
-
-  next();
-});
+  });
+}
 
 app.use((req, res) => {
   res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });

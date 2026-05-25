@@ -7,11 +7,22 @@
     "api/index.js": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "api/device-invitations/index.js": {
+      "maxDuration": 30
+    },
+    "api/device-invitations/[token]/redeem.js": {
+      "maxDuration": 30
+    },
+    "api/health.js": {
+      "maxDuration": 10
     }
   },
   "rewrites": [
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/api/device-invitations/:token/redeem", "destination": "/api/device-invitations/:token/redeem" },
+    { "source": "/api/device-invitations", "destination": "/api/device-invitations" },
     { "source": "/api/:path*", "destination": "/api" },
-    { "source": "/health", "destination": "/api" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

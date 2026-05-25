@@ -465,6 +465,13 @@ fun PairingScreen(
                     error = null
                     try {
                         ApiClient.init(serverUrl, context)
+                        val health = withContext(Dispatchers.IO) {
+                            ApiClient.service.healthCheck()
+                        }
+                        if (!health.isSuccessful) {
+                            error = "Cannot reach server (HTTP ${health.code()}). Use https://your-app.vercel.app with no extra path."
+                            return@launch
+                        }
                         val response = withContext(Dispatchers.IO) {
                             ApiClient.service.redeemInvite(
                                 token,
@@ -494,7 +501,15 @@ fun PairingScreen(
                             }
                         }
                     } catch (e: Exception) {
-                        error = "Connection failed: ${e.message}"
+                        val msg = e.message ?: "unknown error"
+                        val hint = when {
+                            msg.contains("timeout", ignoreCase = true) ->
+                                " Server took too long. Confirm URL is https://YOUR-PROJECT.vercel.app (not 192.168.x.x) and redeploy the latest code."
+                            msg.contains("Unable to resolve host", ignoreCase = true) ->
+                                " Check internet connection and Server URL spelling."
+                            else -> ""
+                        }
+                        error = "Connection failed: $msg$hint"
                     } finally {
                         isLoading = false
                     }

@@ -26,6 +26,9 @@ object ApiClient {
         // Allow pasting an invite link; keep only scheme + host for API calls.
         normalized = normalized.replace(Regex("/bind/.*$"), "")
         normalized = normalized.replace(Regex("/+$"), "")
+        if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+            normalized = "https://$normalized"
+        }
         _baseUrl = "$normalized/"
 
         val logging = HttpLoggingInterceptor().apply {
@@ -46,8 +49,9 @@ object ApiClient {
         }
 
         val client = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(45, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
+            .writeTimeout(45, TimeUnit.SECONDS)
             .addInterceptor(deviceInterceptor)
             .addInterceptor(logging)
             .build()

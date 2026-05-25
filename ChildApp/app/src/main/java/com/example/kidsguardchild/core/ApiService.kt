@@ -60,6 +60,9 @@ data class DeviceInfo(val id: String, val deviceName: String, val boundAt: Strin
 
 interface ApiService {
 
+    @GET("health")
+    suspend fun healthCheck(): Response<Map<String, Any>>
+
     // Pairing
     @POST("api/device-invitations/{token}/redeem")
     suspend fun redeemInvite(
