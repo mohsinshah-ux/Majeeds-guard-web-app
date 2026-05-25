@@ -29,7 +29,7 @@ import { createDeviceInvitation } from '@/lib/api';
 const BACKEND = getApiBaseUrl();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type BindStep = 'choose' | 'generate' | 'apk';
+type BindStep = 'choose' | 'generate' | 'connected' | 'apk';
 type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
 
 interface Invitation {
@@ -68,7 +68,7 @@ const permissionGroups = [
 
 // ─── Main Layout ──────────────────────────────────────────────────────────────
 export function Layout() {
-  const { devices, refreshDevices } = useSelectedDevice();
+  const { devices, refreshDevices, setSelectedDevice } = useSelectedDevice();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [bindModalOpen, setBindModalOpen] = useState(false);
@@ -140,11 +140,7 @@ export function Layout() {
       setBindStep('generate');
       void refreshDevices();
     } catch {
-      const token = Math.random().toString(36).slice(2, 12);
-      const fallbackUrl = `${window.location.origin}/bind/${token}`;
-      setInvitation({ token, label: deviceLabel || 'Child Device', inviteUrl: fallbackUrl });
-      setGenError('Could not reach backend — showing a local demo link. Run "npm run dev:backend" to use real tokens.');
-      setBindStep('generate');
+      setGenError('Could not reach the server. Check your connection and try again.');
     } finally {
       setGenerating(false);
     }
@@ -152,11 +148,26 @@ export function Layout() {
 
   // Poll for newly paired devices while invite is active
   useEffect(() => {
-    if (bindStep !== 'generate' || !bindModalOpen) return;
-    void refreshDevices();
-    const interval = setInterval(() => void refreshDevices(), 3000);
-    return () => clearInterval(interval);
-  }, [bindStep, bindModalOpen, refreshDevices]);
+    if (bindStep !== 'generate' || !bindModalOpen || !invitation) return;
+    let cancelled = false;
+
+    const check = async () => {
+      const list = await refreshDevices();
+      if (cancelled || !invitation) return;
+      const paired = list.find((d) => d.id === invitation.token);
+      if (paired) {
+        setSelectedDevice(paired);
+        setBindStep('connected');
+      }
+    };
+
+    void check();
+    const interval = setInterval(() => void check(), 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [bindStep, bindModalOpen, invitation, refreshDevices, setSelectedDevice]);
 
   // ── Copy invite link ─────────────────────────────────────────────────────────
   const handleCopy = useCallback(() => {
@@ -532,6 +543,38 @@ export function Layout() {
                         <RefreshCw className={`w-3.5 h-3.5 ${generating ? 'animate-spin' : ''}`} /> Regenerate Token
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* ── STEP: connected (pairing confirmed) ───────────────────── */}
+                {bindStep === 'connected' && invitation && (
+                  <div className="space-y-5 text-center py-4">
+                    <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+                      <CheckCircle2 className="w-9 h-9 text-emerald-400" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-bold text-[#e5ffe5]">Device paired successfully</h3>
+                      <p className="text-sm text-slate-300">
+                        <strong className="text-emerald-400">
+                          {(devices.find((d) => d.id === invitation.token)?.deviceName ?? deviceLabel) || 'Child device'}
+                        </strong>{' '}
+                        is connected and selected in your dashboard.
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Live data will appear as the child app syncs. You can close this window and view the dashboard.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const paired = devices.find((d) => d.id === invitation.token);
+                        if (paired) setSelectedDevice(paired);
+                        closeModal();
+                      }}
+                      className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                    >
+                      Continue to Dashboard
+                    </button>
                   </div>
                 )}
 

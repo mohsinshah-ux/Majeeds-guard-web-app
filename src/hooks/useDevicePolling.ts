@@ -1,43 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchDevices } from '@/lib/api';
-import { getSelectedDeviceId, DEVICE_CHANGED_EVENT } from '@/lib/selectedDevice';
+import { useSelectedDevice } from '@/context/SelectedDeviceContext';
+import { DEVICE_CHANGED_EVENT } from '@/lib/selectedDevice';
 
-/** Polls whether a child device is selected and bound. */
+/** Whether a child device is selected (uses shared device context). */
 export function useHasBoundDevice(pollMs = 5000) {
-  const [hasDevice, setHasDevice] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(() => getSelectedDeviceId());
-
-  const refresh = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const id = getSelectedDeviceId();
-      setSelectedId(id);
-      if (!id) {
-        setHasDevice(false);
-        return;
-      }
-      const devices = await fetchDevices();
-      setHasDevice(devices.some((d) => d.id === id));
-    } catch {
-      setHasDevice(false);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { selectedDeviceId, devices, loading, refreshDevices } = useSelectedDevice();
+  const hasDevice = Boolean(selectedDeviceId && devices.some((d) => d.id === selectedDeviceId));
 
   useEffect(() => {
-    void refresh(false);
-    const interval = setInterval(() => void refresh(true), pollMs);
-    const onDeviceChange = () => void refresh(false);
-    window.addEventListener(DEVICE_CHANGED_EVENT, onDeviceChange);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener(DEVICE_CHANGED_EVENT, onDeviceChange);
-    };
-  }, [refresh, pollMs]);
+    const interval = setInterval(() => void refreshDevices(), pollMs);
+    return () => clearInterval(interval);
+  }, [refreshDevices, pollMs]);
 
-  return { hasDevice, loading, refresh, selectedDeviceId: selectedId };
+  return {
+    hasDevice,
+    loading,
+    refresh: refreshDevices,
+    selectedDeviceId,
+  };
 }
 
 /** Loads API data on interval for the currently selected child device only. */
@@ -57,6 +37,7 @@ export function useDevicePolling<T>(
     async (showSpinner: boolean) => {
       if (!hasDevice || !selectedDeviceId) {
         setData(initialRef.current);
+        setError(null);
         if (showSpinner) setLoading(false);
         return;
       }

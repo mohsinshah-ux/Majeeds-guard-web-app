@@ -205,7 +205,8 @@ app.get("/health", (_req, res) => {
 
 // ─── GET API ENDPOINTS WITH PAIRED DEVICE DUMMY HIDE LOGIC ──────────────────
 app.get("/api/devices", (_req, res) => {
-  res.json(boundDevices);
+  loadPersistedState(allStateStores());
+  res.json([...boundDevices]);
 });
 
 app.get("/api/overview-stats", (req, res) => {

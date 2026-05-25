@@ -229,13 +229,23 @@ export type RemoteControlState = {
   historicalSyncPending?: boolean;
 };
 
-async function fetchJson<T>(path: string): Promise<T> {
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const response = await fetch(`${API_BASE_URL}${withDeviceQuery(normalizedPath)}`);
-  if (!response.ok) {
-    throw new Error(`API request failed for ${path}: ${response.status}`);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 25000);
+  try {
+    const response = await fetch(`${API_BASE_URL}${withDeviceQuery(normalizedPath)}`, {
+      cache: "no-store",
+      ...init,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`API request failed for ${path}: ${response.status}`);
+    }
+    return response.json() as Promise<T>;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return response.json() as Promise<T>;
 }
 
 function parseDurationToSeconds(duration: string): number {
@@ -347,7 +357,8 @@ export async function fetchDashboard(): Promise<DashboardResponse> {
 }
 
 export async function fetchDevices(): Promise<Device[]> {
-  return fetchJson<Device[]>("/api/devices");
+  const data = await fetchJson<Device[]>("/api/devices");
+  return Array.isArray(data) ? data : [];
 }
 
 export async function removeDevice(id: string): Promise<void> {

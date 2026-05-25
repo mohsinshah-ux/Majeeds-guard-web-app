@@ -181,7 +181,7 @@ fun KidsGuardApp(
     onOpenNotificationSettings: () -> Unit,
     onOpenDeviceAdminSettings: () -> Unit
 ) {
-    var currentStep by remember { mutableIntStateOf(if (isPaired) 4 else 0) }
+    var currentStep by remember { mutableIntStateOf(if (isPaired) 6 else 0) }
     var serverUrl by remember { mutableStateOf(savedUrl) }
     var deviceName by remember { mutableStateOf("") }
     var pairingToken by remember { mutableStateOf(savedToken) }
@@ -234,23 +234,32 @@ fun KidsGuardApp(
                         onTokenChange = { pairingToken = it },
                         onPaired = {
                             onPaired(serverUrl, pairingToken, deviceName.ifBlank { "Child Device" })
+                            ApiClient.init(serverUrl, activityContext)
                             currentStep = 3
                         },
                         onBack = { currentStep = 1 }
                     )
-                    3 -> PermissionsScreen(
+                    3 -> PairingSuccessScreen(
+                        deviceName = deviceName.ifBlank { "Child Device" },
+                        onContinue = { currentStep = 4 }
+                    )
+                    4 -> PermissionsScreen(
                         onRequestLocation = onRequestLocationPermission,
                         onRequestContacts = onRequestContactsPermission,
                         onRequestPhoneData = onRequestPhoneDataPermissions,
                         onOpenUsageAccess = onOpenUsageAccessSettings,
                         onOpenNotifications = onOpenNotificationSettings,
                         onOpenDeviceAdmin = onOpenDeviceAdminSettings,
-                        onComplete = {
+                        onComplete = { currentStep = 5 }
+                    )
+                    5 -> SetupCompleteScreen(
+                        deviceName = deviceName.ifBlank { "Child Device" },
+                        onContinue = {
                             onStartService()
-                            currentStep = 4
+                            currentStep = 6
                         }
                     )
-                    4 -> DashboardScreen(
+                    6 -> DashboardScreen(
                         onLogout = {
                             onLogout()
                             currentStep = 0
@@ -361,7 +370,7 @@ fun ServerSetupScreen(
     ) {
         Spacer(modifier = Modifier.height(60.dp))
 
-        StepIndicator(currentStep = 1, totalSteps = 4)
+        StepIndicator(currentStep = 1, totalSteps = 5)
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -447,7 +456,7 @@ fun PairingScreen(
     ) {
         Spacer(modifier = Modifier.height(60.dp))
 
-        StepIndicator(currentStep = 2, totalSteps = 4)
+        StepIndicator(currentStep = 2, totalSteps = 5)
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -557,7 +566,62 @@ fun PairingScreen(
     }
 }
 
-// â”€â”€â”€ Step 3: Permission Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step 3: Pairing success confirmation ──────────────────────────────────────
+
+@Composable
+fun PairingSuccessScreen(deviceName: String, onContinue: () -> Unit) {
+    var showAlert by remember { mutableStateOf(true) }
+
+    if (showAlert) {
+        AlertDialog(
+            onDismissRequest = { showAlert = false },
+            containerColor = CardBg,
+            icon = {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Emerald, modifier = Modifier.size(40.dp))
+            },
+            title = {
+                Text("Pairing successful", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Text(
+                    "This device is now linked to the parent dashboard as \"$deviceName\". Grant permissions on the next screen to start sending data.",
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showAlert = false }) {
+                    Text("OK", color = Emerald, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        StepIndicator(currentStep = 3, totalSteps = 5)
+        Spacer(modifier = Modifier.height(32.dp))
+        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Emerald, modifier = Modifier.size(72.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Device paired", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "\"$deviceName\" is connected to your parent web app. Tap continue to set permissions and start monitoring.",
+            fontSize = 13.sp,
+            color = TextSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(40.dp))
+        GradientButton(text = "Continue", onClick = onContinue)
+    }
+}
+
+// ─── Step 4: Permission Wizard ───────────────────────────────────────────────
 
 @Composable
 fun PermissionsScreen(
@@ -644,7 +708,7 @@ fun PermissionsScreen(
     ) {
         Spacer(modifier = Modifier.height(48.dp))
 
-        StepIndicator(currentStep = 3, totalSteps = 4)
+        StepIndicator(currentStep = 4, totalSteps = 5)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -757,7 +821,62 @@ fun PermissionCard(item: PermissionItem) {
     }
 }
 
-// â”€â”€â”€ Step 4: Live Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Step 5: Setup complete confirmation ─────────────────────────────────────
+
+@Composable
+fun SetupCompleteScreen(deviceName: String, onContinue: () -> Unit) {
+    var showAlert by remember { mutableStateOf(true) }
+
+    if (showAlert) {
+        AlertDialog(
+            onDismissRequest = { showAlert = false },
+            containerColor = CardBg,
+            icon = {
+                Icon(Icons.Default.Verified, contentDescription = null, tint = Emerald, modifier = Modifier.size(40.dp))
+            },
+            title = {
+                Text("Setup complete", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Text(
+                    "\"$deviceName\" is active. Allowed data will sync to the parent dashboard in real time.",
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showAlert = false }) {
+                    Text("OK", color = Emerald, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        StepIndicator(currentStep = 5, totalSteps = 5)
+        Spacer(modifier = Modifier.height(32.dp))
+        Icon(Icons.Default.Verified, contentDescription = null, tint = Emerald, modifier = Modifier.size(72.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("All set", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "Monitoring is running. Your parent can view live data from the web dashboard.",
+            fontSize = 13.sp,
+            color = TextSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(40.dp))
+        GradientButton(text = "Open dashboard", onClick = onContinue)
+    }
+}
+
+// ─── Live Dashboard ────────────────────────────────────────────────────────────
 
 @Composable
 fun DashboardScreen(onLogout: () -> Unit) {

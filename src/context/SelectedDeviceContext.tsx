@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -15,8 +16,9 @@ type SelectedDeviceContextValue = {
   selectedDevice: Device | null;
   selectedDeviceId: string | null;
   setSelectedDevice: (device: Device | null) => void;
-  refreshDevices: () => Promise<void>;
+  refreshDevices: () => Promise<Device[]>;
   loading: boolean;
+  refreshError: string | null;
 };
 
 const SelectedDeviceContext = createContext<SelectedDeviceContextValue | null>(null);
@@ -27,33 +29,44 @@ export function SelectedDeviceProvider({ children }: { children: ReactNode }) {
     () => getSelectedDeviceId()
   );
   const [loading, setLoading] = useState(true);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const devicesRef = useRef<Device[]>([]);
 
-  const refreshDevices = useCallback(async () => {
-    try {
-      const list = await fetchDevices();
-      setDevices(list);
-
-      if (list.length === 0) {
-        setSelectedDeviceId(null);
-        setSelectedDeviceIdState(null);
-        return;
-      }
-
-      const stored = getSelectedDeviceId();
-      const match = stored ? list.find((d) => d.id === stored) : null;
-      const next = match ?? list[0]!;
-      if (next.id !== stored) {
-        setSelectedDeviceId(next.id);
-      }
-      setSelectedDeviceIdState(next.id);
-    } catch {
-      setDevices([]);
+  const applySelection = useCallback((list: Device[]) => {
+    if (list.length === 0) {
       setSelectedDeviceId(null);
       setSelectedDeviceIdState(null);
+      return;
+    }
+    const stored = getSelectedDeviceId();
+    const match = stored ? list.find((d) => d.id === stored) : null;
+    const next = match ?? list[0]!;
+    if (next.id !== stored) {
+      setSelectedDeviceId(next.id);
+    }
+    setSelectedDeviceIdState(next.id);
+  }, []);
+
+  const refreshDevices = useCallback(async (): Promise<Device[]> => {
+    try {
+      const list = await fetchDevices();
+      if (!Array.isArray(list)) {
+        throw new Error('Invalid devices response');
+      }
+      devicesRef.current = list;
+      setDevices(list);
+      setRefreshError(null);
+      applySelection(list);
+      return list;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load devices';
+      setRefreshError(message);
+      // Keep last known devices on transient API errors (do not wipe the list)
+      return devicesRef.current;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applySelection]);
 
   useEffect(() => {
     void refreshDevices();
@@ -88,8 +101,9 @@ export function SelectedDeviceProvider({ children }: { children: ReactNode }) {
       setSelectedDevice,
       refreshDevices,
       loading,
+      refreshError,
     }),
-    [devices, selectedDevice, selectedDeviceId, setSelectedDevice, refreshDevices, loading]
+    [devices, selectedDevice, selectedDeviceId, setSelectedDevice, refreshDevices, loading, refreshError]
   );
 
   return (
