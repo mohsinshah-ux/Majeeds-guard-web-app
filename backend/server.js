@@ -183,13 +183,15 @@ app.use(
 
 loadPersistedState(allStateStores());
 
-app.use(async (req, res, next) => {
-  await hydrateState(allStateStores());
-  res.on("finish", () => {
-    void saveState(allStateStores());
+if (!process.env.VERCEL) {
+  app.use(async (req, res, next) => {
+    await hydrateState(allStateStores());
+    res.on("finish", () => {
+      void saveState(allStateStores());
+    });
+    next();
   });
-  next();
-});
+}
 
 // Express 5 + serverless-http: body-parser waits forever unless socket is readable
 app.use((req, _res, next) => {
@@ -800,7 +802,8 @@ app.post("/api/remote-control/reset-data", (req, res) => {
 // ─── DEVICE PAIRING LIFECYCLE ───────────────────────────────────────────────
 app.post("/api/device-invitations", async (req, res) => {
   const label = typeof req.body?.label === "string" ? req.body.label.trim() : "";
-  const result = await createDeviceInvitation(label, port);
+  const { createInvitation } = await import("./pairing.js");
+  const result = createInvitation(label, port);
   res.status(result.status).json(result.body);
 });
 
@@ -828,7 +831,8 @@ app.post("/api/device-media-invitations", async (req, res) => {
 
 app.post("/api/device-invitations/:token/redeem", async (req, res) => {
   const { token } = req.params;
-  const result = await redeemDeviceInvitation(token, req.body ?? {});
+  const { redeemInvitation } = await import("./pairing.js");
+  const result = redeemInvitation(token, req.body ?? {});
   res.status(result.status).json(result.body);
 });
 
@@ -842,7 +846,8 @@ app.post("/api/pair/redeem", async (req, res) => {
     res.status(400).json({ error: "Pairing token is required" });
     return;
   }
-  const result = await redeemDeviceInvitation(token, req.body ?? {});
+  const { redeemInvitation } = await import("./pairing.js");
+  const result = redeemInvitation(token, req.body ?? {});
   res.status(result.status).json(result.body);
 });
 

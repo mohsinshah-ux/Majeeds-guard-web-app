@@ -529,15 +529,35 @@ export async function updateRemoteControlSettings(settings: Partial<RemoteContro
 }
 
 export async function createDeviceInvitation(label: string): Promise<DeviceInvitationResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/device-invitations`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ label })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to create invitation: ${response.status}`);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 45000);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/device-invitations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(
+        `Failed to create invitation (HTTP ${response.status})${detail ? `: ${detail.slice(0, 120)}` : ""}`
+      );
+    }
+    const data = (await response.json()) as DeviceInvitationResponse;
+    if (!data?.token || !data?.inviteUrl) {
+      throw new Error("Invalid invitation response from server");
+    }
+    return data;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Server timed out. Redeploy on Vercel or check /health.");
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return response.json() as Promise<DeviceInvitationResponse>;
 }
 
 export async function createDeviceMediaInvitation(fileName: string): Promise<DeviceInvitationResponse> {

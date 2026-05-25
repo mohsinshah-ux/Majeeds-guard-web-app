@@ -139,8 +139,12 @@ export function Layout() {
       setInvitation(data);
       setBindStep('generate');
       void refreshDevices();
-    } catch {
-      setGenError('Could not reach the server. Check your connection and try again.');
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Could not reach the server. Check your connection and try again.';
+      setGenError(msg);
     } finally {
       setGenerating(false);
     }
@@ -360,6 +364,13 @@ export function Layout() {
                           className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500/50 rounded-lg px-3 py-2 text-sm text-[#e5ffe5] placeholder:text-slate-600 outline-none transition-colors"
                         />
                       </div>
+
+                      {genError && bindStep === 'choose' && (
+                        <div className="p-3 bg-red-950/40 border border-red-700/50 rounded-lg text-[11px] text-red-300 flex items-start gap-2">
+                          <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span>{genError}</span>
+                        </div>
+                      )}
 
                       <button
                         type="button"
